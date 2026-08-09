@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid()) @map("_id")
+  email      String   @unique
+  password   String
+  full_name  String?
+  phone      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  photo       String?
+  role        Role     @default(USER)
+  is_verified Boolean  @default(false)
+  language    String   @default("uz")
+
+  orders Order[]
+  cart   Cart?
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Category {
+  id          String   @id @default(uuid()) @map("_id")
+  name        String   @unique
+  description String?
+  image       String?
+  is_archived Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  products Product[]
+
+  @@index([is_archived])
+}
+
+type ProductAttribute {
+  key   String
+  value String
+}
+
+model Product {
+  id          String             @id @default(uuid()) @map("_id")
+  name        String
+  description String?
+  price       Float
+  stock       Int                @default(0)
+  images      String[]
+  is_archived Boolean            @default(false)
+  attributes  ProductAttribute[]
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @updatedAt
+
+  category_id String
+  category    Category @relation(fields: [category_id], references: [id])
+
+  order_items OrderItem[]
+  cart_items  CartItem[]
+
+  @@index([name])
+  @@index([price])
+  @@index([category_id, is_archived])
+  @@index([is_archived])
+}
+
+model Cart {
+  id         String     @id @default(uuid()) @map("_id")
+  user_id    String     @unique
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+}
+
+model CartItem {
+  id         String   @id @default(uuid()) @map("_id")
+  cart_id    String
+  cart       Cart     @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  product_id String
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([cart_id, product_id])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id           String      @id @default(uuid()) @map("_id")
+  user_id      String
+  user         User        @relation(fields: [user_id], references: [id])
+  items        OrderItem[]
+  total_amount Float
+  status       OrderStatus @default(PENDING)
+  payment      Payment?
+  is_archived  Boolean     @default(false)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  @@index([user_id])
+  @@index([user_id, is_archived])
+  @@index([status])
+  @@index([created_at])
+}
+
+model OrderItem {
+  id                String   @id @default(uuid()) @map("_id")
+  order_id          String
+  order             Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product_id        String
+  product           Product  @relation(fields: [product_id], references: [id])
+  quantity          Int
+  price_at_purchase Float
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@index([order_id])
+  @@index([product_id])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @map("_id")
+  order_id       String        @unique
+  order          Order         @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  amount         Float
+  provider       String // Click, Payme, Stripe, etc.
+  status         PaymentStatus @default(PENDING)
+  transaction_id String?       @unique // Vendor transaction identifier
+  error_message  String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  @@index([status])
+  @@index([provider])
+}
