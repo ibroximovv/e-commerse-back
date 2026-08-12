@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { MailModule } from './common/services/mail.module';
 import { AuthModule } from './api/auth/auth.module';
 import { UsersModule } from './api/users/users.module';
 import { CategoriesModule } from './api/categories/categories.module';
@@ -16,6 +17,7 @@ import { UploadModule } from './api/upload/upload.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    MailModule,
     AuthModule,
     UsersModule,
     CategoriesModule,

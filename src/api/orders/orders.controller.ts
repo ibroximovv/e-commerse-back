@@ -10,7 +10,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -35,7 +41,12 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({ summary: 'Get current user orders' })
-  @ApiQuery({ name: 'archived', required: false, type: Boolean, description: 'Filter archived orders' })
+  @ApiQuery({
+    name: 'archived',
+    required: false,
+    type: Boolean,
+    description: 'Filter archived orders',
+  })
   findUserOrders(
     @CurrentUser('sub') userId: string,
     @Query('archived') archived?: string,
@@ -53,30 +64,21 @@ export class OrdersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get order by ID' })
-  findOne(
-    @Param('id') id: string,
-    @CurrentUser() currentUser: any,
-  ) {
+  findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
     const isAdmin = currentUser.role === Role.ADMIN;
     return this.ordersService.findOne(id, currentUser.sub, isAdmin);
   }
 
   @Patch(':id/archive')
   @ApiOperation({ summary: 'Archive/Hide past order history' })
-  archiveOrder(
-    @Param('id') id: string,
-    @CurrentUser('sub') userId: string,
-  ) {
+  archiveOrder(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.ordersService.archiveOrder(id, userId);
   }
 
   @Patch(':id/status')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update order status (Admin only)' })
-  updateStatus(
-    @Param('id') id: string,
-    @Body() dto: UpdateOrderStatusDto,
-  ) {
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
     return this.ordersService.updateStatus(id, dto.status);
   }
 }

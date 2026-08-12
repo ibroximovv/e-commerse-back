@@ -1,12 +1,10 @@
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { PayOrderDto } from './dto/pay-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,10 +19,7 @@ export class PaymentsController {
 
   @Post()
   @ApiOperation({ summary: 'Pay for a pending order' })
-  payOrder(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: PayOrderDto,
-  ) {
+  payOrder(@CurrentUser('sub') userId: string, @Body() dto: PayOrderDto) {
     return this.paymentsService.payOrder(userId, dto.order_id, dto.provider);
   }
 
@@ -35,6 +30,10 @@ export class PaymentsController {
     @CurrentUser() currentUser: any,
   ) {
     const isAdmin = currentUser.role === 'ADMIN';
-    return this.paymentsService.getPaymentStatus(orderId, currentUser.sub, isAdmin);
+    return this.paymentsService.getPaymentStatus(
+      orderId,
+      currentUser.sub,
+      isAdmin,
+    );
   }
 }

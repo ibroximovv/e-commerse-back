@@ -9,7 +9,12 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -34,10 +39,10 @@ export class CategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all active categories (Admins see all including archived)' })
-  async findAll(
-    @Query('all') all?: boolean,
-  ) {
+  @ApiOperation({
+    summary: 'Get all active categories (Admins see all including archived)',
+  })
+  async findAll(@Query('all') all?: boolean) {
     if (all) {
       return this.categoriesService.findAll();
     }

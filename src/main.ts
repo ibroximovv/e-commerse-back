@@ -31,7 +31,9 @@ async function bootstrap() {
   // Swagger Documentation Setup
   const config = new DocumentBuilder()
     .setTitle('E-commerce REST API')
-    .setDescription('Enterprise-grade NestJS E-commerce Backend API Documentation')
+    .setDescription(
+      'Enterprise-grade NestJS E-commerce Backend API Documentation',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -42,6 +44,8 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger API Docs available at: http://localhost:${port}/api/docs`);
+  console.log(
+    `Swagger API Docs available at: http://localhost:${port}/api/docs`,
+  );
 }
 bootstrap();

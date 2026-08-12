@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { OrderStatus } from '@prisma/client';
 
@@ -32,11 +36,15 @@ export class OrdersService {
       for (const item of cart.items) {
         const product = item.product;
         if (product.is_archived) {
-          throw new BadRequestException(`Product "${product.name}" is archived and cannot be ordered`);
+          throw new BadRequestException(
+            `Product "${product.name}" is archived and cannot be ordered`,
+          );
         }
 
         if (product.stock < item.quantity) {
-          throw new BadRequestException(`Insufficient stock for product "${product.name}"`);
+          throw new BadRequestException(
+            `Insufficient stock for product "${product.name}"`,
+          );
         }
 
         // Deduct product stock

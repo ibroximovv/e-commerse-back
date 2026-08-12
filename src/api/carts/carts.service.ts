@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -47,7 +51,9 @@ export class CartsService {
     }
 
     if (product.is_archived) {
-      throw new BadRequestException('Product is archived and cannot be added to cart');
+      throw new BadRequestException(
+        'Product is archived and cannot be added to cart',
+      );
     }
 
     if (product.stock < quantity) {
@@ -56,7 +62,9 @@ export class CartsService {
 
     const cart = await this.findOrCreateCart(userId);
 
-    const existingItem = cart.items.find((item) => item.product_id === productId);
+    const existingItem = cart.items.find(
+      (item) => item.product_id === productId,
+    );
 
     if (existingItem) {
       const newQuantity = existingItem.quantity + quantity;
@@ -81,7 +89,11 @@ export class CartsService {
     return this.getCart(userId);
   }
 
-  async updateItemQuantity(userId: string, productId: string, quantity: number) {
+  async updateItemQuantity(
+    userId: string,
+    productId: string,
+    quantity: number,
+  ) {
     if (quantity <= 0) {
       return this.removeItem(userId, productId);
     }
@@ -99,7 +111,9 @@ export class CartsService {
     }
 
     const cart = await this.findOrCreateCart(userId);
-    const existingItem = cart.items.find((item) => item.product_id === productId);
+    const existingItem = cart.items.find(
+      (item) => item.product_id === productId,
+    );
 
     if (!existingItem) {
       throw new NotFoundException('Item not found in cart');
@@ -115,7 +129,9 @@ export class CartsService {
 
   async removeItem(userId: string, productId: string) {
     const cart = await this.findOrCreateCart(userId);
-    const existingItem = cart.items.find((item) => item.product_id === productId);
+    const existingItem = cart.items.find(
+      (item) => item.product_id === productId,
+    );
 
     if (!existingItem) {
       throw new NotFoundException('Item not found in cart');

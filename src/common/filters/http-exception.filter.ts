@@ -17,7 +17,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    
+
     // Optionally extract user language from JWT if not already authenticated (e.g. public routes)
     const reqAny = request as any;
     if (!reqAny.user && request.headers.authorization) {
@@ -25,7 +25,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const token = request.headers.authorization.split(' ')[1];
         if (token) {
           const payloadBase64 = token.split('.')[1];
-          const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+          const payloadJson = Buffer.from(payloadBase64, 'base64').toString(
+            'utf-8',
+          );
           reqAny.user = JSON.parse(payloadJson);
         }
       } catch (e) {
@@ -57,7 +59,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (typeof message === 'string') {
       message = translate(message, ln);
     } else if (Array.isArray(message)) {
-      message = message.map((msg) => (typeof msg === 'string' ? translate(msg, ln) : msg));
+      message = message.map((msg) =>
+        typeof msg === 'string' ? translate(msg, ln) : msg,
+      );
     }
 
     error = translate(error, ln);

@@ -38,7 +38,8 @@ This guide details commands, directory structures, and code patterns for this Ne
 
 ### 3. Authentication & Security
 - **Stateless Tokens:** JWT access and refresh tokens are signed and verified without database state.
-- **Stateless OTP Verification:** Signups send a 6-digit code via Nodemailer. The OTP codes and their 1-minute resend cooldowns are cached in-memory inside `AuthService` using a Map.
+- **Stateless OTP Verification:** Signups send a 6-digit code (generated with `crypto.randomInt`) via Nodemailer. The OTP codes and their resend cooldowns are cached in-memory inside `AuthService` using a Map, with a periodic sweep of expired entries. A code allows 5 wrong attempts before it is discarded; the cooldown also applies to `register`, and every email is normalized to lowercase before lookup.
+- **Mail Delivery:** The only delivery channel is email — there is no SMS provider. `MailService` (`src/common/services/mail.service.ts`, exported by the global `MailModule`) uses `nodemailer.createTransport({ service: 'gmail' })`, so the only credentials are `MAIL_USER` and a **Google App Password** in `MAIL_PASS` — no SMTP host/port/secure settings. Spaces in the app password are stripped automatically. `sendSmsToMail(email, subject, text, html?)` is the general send method; `sendVerificationCode()` wraps it for OTP mails. The connection is verified at startup, and send failures throw instead of being swallowed. See [.env.example](file:///Users/omadbek/new-project/e-commerse/.env.example).
 - **User Role Management:** Users have a `role` of `ADMIN` or `USER`. Endpoints are protected by `JwtAuthGuard` and `RolesGuard`.
 - **Response Safety:** The `ResponseInterceptor` runs all return values through the translation helper which automatically strips out `password` fields from JSON payloads globally.
 

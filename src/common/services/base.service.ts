@@ -13,7 +13,9 @@ export abstract class BaseService<
   ) {}
 
   protected get modelDelegate() {
-    return this.prisma[this.modelName.charAt(0).toLowerCase() + this.modelName.slice(1)];
+    return this.prisma[
+      this.modelName.charAt(0).toLowerCase() + this.modelName.slice(1)
+    ];
   }
 
   async create(data: TCreateInput): Promise<TModel> {

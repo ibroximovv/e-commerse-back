@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { PaymentStatus, OrderStatus } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -20,7 +24,9 @@ export class PaymentsService {
       }
 
       if (order.status !== OrderStatus.PENDING) {
-        throw new BadRequestException(`Order cannot be paid because status is "${order.status}"`);
+        throw new BadRequestException(
+          `Order cannot be paid because status is "${order.status}"`,
+        );
       }
 
       if (order.payment && order.payment.status === PaymentStatus.SUCCESSFUL) {
@@ -66,7 +72,11 @@ export class PaymentsService {
     });
   }
 
-  async getPaymentStatus(orderId: string, userId: string, isAdmin: boolean = false) {
+  async getPaymentStatus(
+    orderId: string,
+    userId: string,
+    isAdmin: boolean = false,
+  ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { payment: true },
@@ -81,7 +91,9 @@ export class PaymentsService {
     }
 
     if (!order.payment) {
-      throw new NotFoundException('No payment transaction found for this order');
+      throw new NotFoundException(
+        'No payment transaction found for this order',
+      );
     }
 
     return order.payment;

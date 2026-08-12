@@ -1,5 +1,17 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -33,7 +45,10 @@ export class AuthController {
   @Post('resend-code')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resend OTP verification code' })
-  @ApiResponse({ status: 200, description: 'Verification code resent successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification code resent successfully',
+  })
   resendCode(@Body() dto: ResendOtpDto) {
     return this.authService.resendCode(dto);
   }
@@ -41,7 +56,10 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email & password' })
-  @ApiResponse({ status: 200, description: 'Access token and refresh token generated' })
+  @ApiResponse({
+    status: 200,
+    description: 'Access token and refresh token generated',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }

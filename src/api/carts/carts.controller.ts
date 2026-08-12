@@ -8,7 +8,12 @@ import {
   Delete,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { CartsService } from './carts.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
@@ -30,10 +35,7 @@ export class CartsController {
 
   @Post('items')
   @ApiOperation({ summary: 'Add product item to cart' })
-  addItem(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: AddToCartDto,
-  ) {
+  addItem(@CurrentUser('sub') userId: string, @Body() dto: AddToCartDto) {
     return this.cartsService.addItem(userId, dto.product_id, dto.quantity);
   }
 
@@ -44,7 +46,11 @@ export class CartsController {
     @Param('product_id') productId: string,
     @Body() dto: UpdateCartItemDto,
   ) {
-    return this.cartsService.updateItemQuantity(userId, productId, dto.quantity);
+    return this.cartsService.updateItemQuantity(
+      userId,
+      productId,
+      dto.quantity,
+    );
   }
 
   @Delete('items/:product_id')

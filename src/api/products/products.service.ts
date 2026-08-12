@@ -4,11 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { Product, Prisma } from '@prisma/client';
 
 @Injectable()
-export class ProductsService extends BaseService<
-  Product,
-  any,
-  any
-> {
+export class ProductsService extends BaseService<Product, any, any> {
   constructor(prisma: PrismaService) {
     super(prisma, 'Product');
   }
