@@ -1,71 +1,250 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
 } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsFilterQueryDto } from './dto/products-filter-query.dto';
+import {
+  CollectionQueryDto,
+  NewArrivalsQueryDto,
+  TopProductsQueryDto,
+} from './dto/collection-query.dto';
+import {
+  AdjustStockDto,
+  BulkArchiveDto,
+  ProductFlagsDto,
+} from './dto/admin-product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Products')
 @Controller('api/products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  // ===========================================================================
+  // Ochiq (public) endpointlar
+  //
+  // DIQQAT: statik yo'llar (`top`, `featured` ...) `:id` dan OLDIN turishi shart,
+  // aks holda Nest ularni ID sifatida qabul qiladi.
+  // ===========================================================================
+
+  @Get()
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Mahsulotlarni qidirish va filtrlash',
+    description:
+      "Kategoriya (ichki kategoriyalari bilan), narx oralig'i, brend, teg, atribut, " +
+      "ombor holati, reyting va chegirma bo'yicha filtr. `?with_facets=true` bilan " +
+      'filtr paneli uchun mavjud qiymatlar ham qaytadi. Arxivlangan mahsulotlarni ' +
+      "faqat ADMIN ko'ra oladi.",
+  })
+  findAll(
+    @Query() query: ProductsFilterQueryDto,
+    @CurrentUser('role') role?: Role,
+  ) {
+    return this.productsService.searchAndFilter(query, role === Role.ADMIN);
+  }
+
+  @Get('filters')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Filtr paneli uchun mavjud qiymatlar (fasetlar)',
+    description:
+      "Narx oralig'i, kategoriyalar, brendlar, atributlar va ularning sonlari. " +
+      'Joriy filtrni ham hisobga oladi.',
+  })
+  getFilterOptions(
+    @Query() query: ProductsFilterQueryDto,
+    @CurrentUser('role') role?: Role,
+  ) {
+    return this.productsService.getFilterOptions(query, role === Role.ADMIN);
+  }
+
+  @Get('top')
+  @ApiOperation({
+    summary: 'TOP mahsulotlar',
+    description:
+      "Avval admin qo'lda TOP belgilaganlari, keyin sotuv + reyting + ko'rishlardan " +
+      "hosil bo'lgan reyting bali bo'yicha saralanadi.",
+  })
+  getTop(@Query() query: TopProductsQueryDto) {
+    return this.productsService.getTopProducts({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+      onlyManual: query.only_manual,
+    });
+  }
+
+  @Get('best-sellers')
+  @ApiOperation({ summary: "Eng ko'p sotilgan mahsulotlar" })
+  getBestSellers(@Query() query: CollectionQueryDto) {
+    return this.productsService.getBestSellers({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+    });
+  }
+
+  @Get('featured')
+  @ApiOperation({ summary: 'Tanlangan mahsulotlar (bosh sahifa bloki)' })
+  getFeatured(@Query() query: CollectionQueryDto) {
+    return this.productsService.getFeaturedProducts({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+    });
+  }
+
+  @Get('new-arrivals')
+  @ApiOperation({ summary: 'Yangi kelgan mahsulotlar' })
+  getNewArrivals(@Query() query: NewArrivalsQueryDto) {
+    return this.productsService.getNewArrivals({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+      withinDays: query.within_days,
+    });
+  }
+
+  @Get('discounted')
+  @ApiOperation({ summary: 'Chegirmadagi mahsulotlar (aksiya bloki)' })
+  getDiscounted(@Query() query: CollectionQueryDto) {
+    return this.productsService.getDiscountedProducts({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+    });
+  }
+
+  @Get('top-rated')
+  @ApiOperation({ summary: 'Eng yuqori baholangan mahsulotlar' })
+  getTopRated(@Query() query: CollectionQueryDto) {
+    return this.productsService.getTopRatedProducts({
+      limit: query.limit,
+      categoryId: query.category_id,
+      categorySlug: query.category_slug,
+    });
+  }
+
+  @Get('slug/:slug')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Mahsulotni slug orqali olish (SEO havolalar uchun)',
+  })
+  findBySlug(@Param('slug') slug: string, @CurrentUser('role') role?: Role) {
+    return this.productsService.findBySlug(slug, role === Role.ADMIN);
+  }
+
+  @Get(':id/related')
+  @ApiOperation({
+    summary: "O'xshash mahsulotlar",
+    description:
+      "Avval shu kategoriyadan olinadi, yetmasa qardosh kategoriyalardan to'ldiriladi.",
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  getRelated(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.productsService.getRelatedProducts(id, Number(limit) || 10);
+  }
+
+  @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: "Mahsulotni ID bo'yicha olish",
+    description:
+      "Javobga breadcrumbs, ombor holati va `is_new` qo'shiladi. " +
+      'Mijoz ochganda `view_count` avtomatik oshadi (admin ochganda oshmaydi).',
+  })
+  findOne(@Param('id') id: string, @CurrentUser('role') role?: Role) {
+    return this.productsService.findOneDetailed(id, role === Role.ADMIN);
+  }
+
+  // ===========================================================================
+  // Admin endpointlari
+  // ===========================================================================
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new product (Admin only)' })
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productsService.create(createProductDto);
-  }
-
-  @Get()
   @ApiOperation({
-    summary: 'Search and filter products (Admins see all including archived)',
+    summary: 'Yangi mahsulot yaratish (Admin)',
+    description:
+      'Kategoriya mavjudligi va arxivlanmaganligi tekshiriladi, slug avtomatik ' +
+      'generatsiya qilinadi, chegirma narxi asosiy narxdan kichikligi validatsiya qilinadi.',
   })
-  findAll(@Query() query: ProductsFilterQueryDto) {
-    return this.productsService.searchAndFilter(query);
+  create(@Body() createProductDto: CreateProductDto) {
+    return this.productsService.createProduct(createProductDto);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get product by ID' })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  @Patch('bulk/archive')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Bir nechta mahsulotni arxivlash/tiklash (Admin)' })
+  bulkArchive(@Body() dto: BulkArchiveDto) {
+    return this.productsService.bulkArchive(dto.ids, dto.is_archived);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update product (Admin only)' })
+  @ApiOperation({ summary: 'Mahsulotni yangilash (Admin)' })
   update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(id, updateProductDto);
+    return this.productsService.updateProduct(id, updateProductDto);
+  }
+
+  @Patch(':id/flags')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'TOP / tanlangan / arxiv bayroqlarini almashtirish (Admin)',
+  })
+  setFlags(@Param('id') id: string, @Body() dto: ProductFlagsDto) {
+    return this.productsService.setFlags(id, dto);
+  }
+
+  @Patch(':id/stock')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Ombor zaxirasini o'zgartirish (Admin)" })
+  adjustStock(@Param('id') id: string, @Body() dto: AdjustStockDto) {
+    return this.productsService.adjustStock(id, dto.quantity);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete product (Admin only)' })
+  @ApiOperation({
+    summary: "Mahsulotni o'chirish (Admin)",
+    description:
+      'Buyurtmalar tarixini saqlab qolish uchun odatda `PATCH /:id/flags` orqali ' +
+      "arxivlash afzal ko'riladi.",
+  })
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }

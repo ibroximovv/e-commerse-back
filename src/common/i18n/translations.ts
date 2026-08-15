@@ -8,6 +8,37 @@ export const translations: Record<string, Record<string, string>> = {
     'Smartphones and gadgets': 'Smartfonlar va gadjetlar',
     'High performance laptops': 'Yuqori unumdorlikka ega noutbuklar',
     'Super fast phone': 'Juda tezkor telefon',
+    Smartphones: 'Smartfonlar',
+    Laptops: 'Noutbuklar',
+    Tablets: 'Planshetlar',
+    Headphones: 'Quloqchinlar',
+    Chargers: 'Quvvatlagichlar',
+    Cases: 'Chexollar',
+    'Home Appliances': 'Maishiy texnika',
+    Kitchen: 'Oshxona',
+    'Cables, cases, chargers': 'Kabellar, chexollar, quvvatlagichlar',
+
+    // Katalog xatolari
+    'Category has subcategories. Archive it instead of deleting':
+      "Kategoriyada ichki kategoriyalar bor. O'chirish o'rniga arxivlang.",
+    'Category has products. Archive it instead of deleting':
+      "Kategoriyada mahsulotlar bor. O'chirish o'rniga arxivlang.",
+    'Category with this name already exists':
+      'Bunday nomli kategoriya allaqachon mavjud.',
+    'Category cannot be its own parent':
+      "Kategoriya o'zining ota kategoriyasi bo'la olmaydi.",
+    'Cannot move a category into its own subcategory':
+      "Kategoriyani o'zining ichki kategoriyasi ostiga ko'chirib bo'lmaydi.",
+    'Cannot assign a product to an archived category':
+      "Arxivlangan kategoriyaga mahsulot qo'shib bo'lmaydi.",
+    'Discount price must be lower than the original price':
+      "Chegirma narxi asosiy narxdan kichik bo'lishi kerak.",
+    'Product with this SKU already exists':
+      'Bunday SKU bilan mahsulot allaqachon mavjud.',
+    'Product not found': 'Mahsulot topilmadi.',
+    'Review not found': 'Izoh topilmadi.',
+    'Not enough stock available': "Omborda yetarli mahsulot yo'q.",
+    'Cart is empty': "Savat bo'sh.",
 
     // Errors & Messages
     Unauthorized: 'Ruxsat berilmagan. Iltimos, tizimga kiring.',
@@ -49,6 +80,36 @@ export const translations: Record<string, Record<string, string>> = {
     'Smartphones and gadgets': 'Смартфоны и гаджеты',
     'High performance laptops': 'Высокопроизводительные ноутбуки',
     'Super fast phone': 'Супер быстрый телефон',
+    Smartphones: 'Смартфоны',
+    Laptops: 'Ноутбуки',
+    Tablets: 'Планшеты',
+    Headphones: 'Наушники',
+    Chargers: 'Зарядные устройства',
+    Cases: 'Чехлы',
+    'Home Appliances': 'Бытовая техника',
+    Kitchen: 'Кухня',
+    'Cables, cases, chargers': 'Кабели, чехлы, зарядные устройства',
+
+    // Ошибки каталога
+    'Category has subcategories. Archive it instead of deleting':
+      'В категории есть подкатегории. Архивируйте её вместо удаления.',
+    'Category has products. Archive it instead of deleting':
+      'В категории есть товары. Архивируйте её вместо удаления.',
+    'Category with this name already exists':
+      'Категория с таким названием уже существует.',
+    'Category cannot be its own parent':
+      'Категория не может быть своей же родительской.',
+    'Cannot move a category into its own subcategory':
+      'Нельзя переместить категорию в её собственную подкатегорию.',
+    'Cannot assign a product to an archived category':
+      'Нельзя добавить товар в архивированную категорию.',
+    'Discount price must be lower than the original price':
+      'Цена со скидкой должна быть меньше основной цены.',
+    'Product with this SKU already exists': 'Товар с таким SKU уже существует.',
+    'Product not found': 'Товар не найден.',
+    'Review not found': 'Отзыв не найден.',
+    'Not enough stock available': 'Недостаточно товара на складе.',
+    'Cart is empty': 'Корзина пуста.',
 
     // Errors & Messages
     Unauthorized: 'Не авторизован. Пожалуйста, войдите в систему.',

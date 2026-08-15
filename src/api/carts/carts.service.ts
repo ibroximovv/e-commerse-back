@@ -4,10 +4,47 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { round2 } from '../products/products.pricing';
 
 @Injectable()
 export class CartsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Savat summasini chegirma hisobga olingan `final_price` bo'yicha hisoblaydi.
+   * Frontend narxni qayta hisoblamasligi va checkout bilan farq qilmasligi uchun.
+   */
+  private withTotals<
+    T extends {
+      items: Array<{
+        quantity: number;
+        product: { price: number; final_price: number } | null;
+      }>;
+    },
+  >(cart: T) {
+    let subtotal = 0;
+    let originalTotal = 0;
+    let itemsCount = 0;
+
+    for (const item of cart.items) {
+      const price = item.product?.price ?? 0;
+      const unitPrice = item.product?.final_price || price;
+
+      subtotal += unitPrice * item.quantity;
+      originalTotal += price * item.quantity;
+      itemsCount += item.quantity;
+    }
+
+    return {
+      ...cart,
+      totals: {
+        items_count: itemsCount,
+        subtotal: round2(subtotal),
+        original_total: round2(originalTotal),
+        discount_total: round2(originalTotal - subtotal),
+      },
+    };
+  }
 
   async findOrCreateCart(userId: string) {
     let cart = await this.prisma.cart.findUnique({
@@ -38,7 +75,7 @@ export class CartsService {
   }
 
   async getCart(userId: string) {
-    return this.findOrCreateCart(userId);
+    return this.withTotals(await this.findOrCreateCart(userId));
   }
 
   async addItem(userId: string, productId: string, quantity: number = 1) {
