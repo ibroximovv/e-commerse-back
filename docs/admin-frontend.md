@@ -1,6 +1,6 @@
 # Adminka uchun API qo'llanmasi (React)
 
-## test
+## test ci/cd
 Bu hujjat shu backend'ni React adminkasidan ishlatish uchun yozilgan. Barcha endpointlar, javob formati, autentifikatsiya oqimi va amaliy kod namunalari shu yerda.
 
 - **Base URL:** `http://localhost:3000`
