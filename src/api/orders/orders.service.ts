@@ -2,16 +2,26 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { POPULARITY_WEIGHTS, round2 } from '../products/products.pricing';
+import { CheckoutDto } from './dto/checkout.dto';
+import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
+
+const ALLOWED_ORDER_SORT_FIELDS = [
+  'created_at',
+  'updated_at',
+  'total_amount',
+  'status',
+] as const;
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async checkout(userId: string) {
+  async checkout(userId: string, dto?: CheckoutDto) {
     // Execute all database calls inside an atomic Prisma Transaction
     return this.prisma.$transaction(async (tx) => {
       // 1. Get user's cart
@@ -82,6 +92,11 @@ export class OrdersService {
           user_id: userId,
           total_amount: round2(totalAmount),
           status: OrderStatus.PENDING,
+          shipping_address: dto?.shipping_address ?? null,
+          customer_phone: dto?.customer_phone ?? null,
+          customer_name: dto?.customer_name ?? null,
+          notes: dto?.notes ?? null,
+          payment_method: dto?.payment_method ?? null,
           items: {
             createMany: {
               data: orderItemsData,
@@ -130,6 +145,7 @@ export class OrdersService {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
+        user: true,
         items: {
           include: {
             product: true,
@@ -158,6 +174,57 @@ export class OrdersService {
     });
   }
 
+  async cancelOrder(orderId: string, userId: string, isAdmin: boolean = false) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (!isAdmin && order.user_id !== userId) {
+      throw new ForbiddenException('You cannot cancel another user order');
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      return order;
+    }
+
+    if (!isAdmin && order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        `Only PENDING orders can be cancelled by customers. Current status: ${order.status}`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.product_id },
+          data: {
+            stock: { increment: item.quantity },
+            sales_count: { decrement: item.quantity },
+            popularity_score: {
+              decrement: item.quantity * POPULARITY_WEIGHTS.sale,
+            },
+          },
+        });
+      }
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.CANCELLED },
+        include: {
+          items: {
+            include: { product: true },
+          },
+          payment: true,
+        },
+      });
+    });
+  }
+
   async updateStatus(orderId: string, status: OrderStatus) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -180,11 +247,16 @@ export class OrdersService {
       return this.prisma.order.update({
         where: { id: orderId },
         data: { status },
+        include: {
+          items: {
+            include: { product: true },
+          },
+          payment: true,
+        },
       });
     }
 
-    // Bekor qilinganda zaxira qaytariladi va sotuv statistikasi tuzatiladi,
-    // aks holda bekor qilingan buyurtmalar TOP mahsulotlar ro'yxatini buzadi.
+    // Bekor qilinganda zaxira qaytariladi va sotuv statistikasi tuzatiladi
     return this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
         await tx.product.update({
@@ -202,24 +274,93 @@ export class OrdersService {
       return tx.order.update({
         where: { id: orderId },
         data: { status },
+        include: {
+          items: {
+            include: { product: true },
+          },
+          payment: true,
+        },
       });
     });
   }
 
-  async findAllAdmin() {
-    return this.prisma.order.findMany({
-      include: {
-        user: true,
-        items: {
-          include: {
-            product: true,
+  async findAllAdmin(query: AdminOrdersQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.OrderWhereInput = {};
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.start_date || query.end_date) {
+      where.created_at = {};
+      if (query.start_date) {
+        where.created_at.gte = new Date(query.start_date);
+      }
+      if (query.end_date) {
+        where.created_at.lte = new Date(query.end_date);
+      }
+    }
+
+    if (query.min_amount !== undefined || query.max_amount !== undefined) {
+      where.total_amount = {};
+      if (query.min_amount !== undefined) {
+        where.total_amount.gte = query.min_amount;
+      }
+      if (query.max_amount !== undefined) {
+        where.total_amount.lte = query.max_amount;
+      }
+    }
+
+    if (query.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { id: { contains: term, mode: 'insensitive' } },
+        { customer_name: { contains: term, mode: 'insensitive' } },
+        { customer_phone: { contains: term, mode: 'insensitive' } },
+        { shipping_address: { contains: term, mode: 'insensitive' } },
+        { user: { email: { contains: term, mode: 'insensitive' } } },
+        { user: { full_name: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    const sortBy = (ALLOWED_ORDER_SORT_FIELDS as readonly string[]).includes(
+      query.sortBy ?? '',
+    )
+      ? (query.sortBy as string)
+      : 'created_at';
+    const sortOrder = query.sortOrder ?? 'desc';
+
+    const [data, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          user: true,
+          items: {
+            include: {
+              product: true,
+            },
           },
+          payment: true,
         },
-        payment: true,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 0,
       },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
+    };
   }
 }

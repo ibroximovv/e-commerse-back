@@ -18,6 +18,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 interface OtpRecord {
   code: string;
@@ -32,6 +34,10 @@ export class AuthService implements OnModuleDestroy {
   // In-memory verification code caches
   private otpMap = new Map<string, OtpRecord>();
   private cooldownMap = new Map<string, Date>();
+
+  // In-memory password reset caches
+  private resetOtpMap = new Map<string, OtpRecord>();
+  private resetCooldownMap = new Map<string, Date>();
 
   private readonly otpTtlMinutes: number;
   private readonly resendCooldownSeconds: number;
@@ -185,7 +191,93 @@ export class AuthService implements OnModuleDestroy {
       throw new UnauthorizedException('Account not verified');
     }
 
-    return this.generateTokens(user.id, user.email, user.role, user.language);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.role,
+      user.language,
+    );
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        phone: user.phone,
+        photo: user.photo,
+        language: user.language,
+        is_verified: user.is_verified,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      },
+      ...tokens,
+    };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.is_verified) {
+      throw new BadRequestException('Account not verified');
+    }
+
+    this.assertNotOnResetCooldown(email);
+    await this.sendPasswordResetOtp(email);
+
+    return { message: 'Password reset code sent to email' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const email = this.normalizeEmail(dto.email);
+    const record = this.resetOtpMap.get(email);
+
+    if (!record) {
+      throw new BadRequestException('Verification code is invalid or expired');
+    }
+
+    if (new Date() > record.expiresAt) {
+      this.resetOtpMap.delete(email);
+      throw new BadRequestException('Verification code expired');
+    }
+
+    if (record.code !== dto.code) {
+      record.attempts += 1;
+      if (record.attempts >= this.maxOtpAttempts) {
+        this.resetOtpMap.delete(email);
+        throw new BadRequestException(
+          'Too many invalid attempts. Please request a new code',
+        );
+      }
+      throw new BadRequestException('Invalid verification code');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      this.resetOtpMap.delete(email);
+      this.resetCooldownMap.delete(email);
+      throw new NotFoundException('User not found');
+    }
+
+    const hashedNewPassword = await bcrypt.hash(dto.new_password, 10);
+    await this.prisma.user.update({
+      where: { email },
+      data: { password: hashedNewPassword },
+    });
+
+    this.resetOtpMap.delete(email);
+    this.resetCooldownMap.delete(email);
+
+    return { message: 'Password reset successfully' };
+  }
+
+  async logout() {
+    return { message: 'Logged out successfully' };
   }
 
   async refresh(dto: RefreshTokenDto) {
@@ -253,6 +345,16 @@ export class AuthService implements OnModuleDestroy {
     }
   }
 
+  private assertNotOnResetCooldown(email: string) {
+    const lastSent = this.resetCooldownMap.get(email);
+    if (!lastSent) return;
+
+    const elapsedSeconds = Math.floor((Date.now() - lastSent.getTime()) / 1000);
+    if (elapsedSeconds < this.resendCooldownSeconds) {
+      throw new BadRequestException('Please wait 1 minute before resending');
+    }
+  }
+
   private async sendVerificationOtp(email: string) {
     // Math.random() is not a CSPRNG - a predictable OTP is a guessable OTP.
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
@@ -268,10 +370,30 @@ export class AuthService implements OnModuleDestroy {
         this.otpTtlMinutes,
       );
     } catch (error) {
-      // The mail never left: drop the code and the cooldown so the client can retry at once.
       this.otpMap.delete(email);
       this.cooldownMap.delete(email);
       this.logger.error(`Could not deliver verification code to ${email}`);
+      throw error;
+    }
+  }
+
+  private async sendPasswordResetOtp(email: string) {
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const expiresAt = new Date(Date.now() + this.otpTtlMinutes * 60 * 1000);
+
+    this.resetOtpMap.set(email, { code, expiresAt, attempts: 0 });
+    this.resetCooldownMap.set(email, new Date());
+
+    try {
+      await this.mailService.sendPasswordResetCode(
+        email,
+        code,
+        this.otpTtlMinutes,
+      );
+    } catch (error) {
+      this.resetOtpMap.delete(email);
+      this.resetCooldownMap.delete(email);
+      this.logger.error(`Could not deliver password reset code to ${email}`);
       throw error;
     }
   }
@@ -285,10 +407,22 @@ export class AuthService implements OnModuleDestroy {
       }
     }
 
+    for (const [email, record] of this.resetOtpMap) {
+      if (record.expiresAt.getTime() <= now) {
+        this.resetOtpMap.delete(email);
+      }
+    }
+
     const cooldownMs = this.resendCooldownSeconds * 1000;
     for (const [email, sentAt] of this.cooldownMap) {
       if (now - sentAt.getTime() >= cooldownMs) {
         this.cooldownMap.delete(email);
+      }
+    }
+
+    for (const [email, sentAt] of this.resetCooldownMap) {
+      if (now - sentAt.getTime() >= cooldownMs) {
+        this.resetCooldownMap.delete(email);
       }
     }
   }

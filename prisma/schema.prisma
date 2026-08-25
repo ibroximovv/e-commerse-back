@@ -175,16 +175,21 @@ enum OrderStatus {
 }
 
 model Order {
-  id           String      @id @default(uuid()) @map("_id")
-  user_id      String
-  user         User        @relation(fields: [user_id], references: [id])
-  items        OrderItem[]
-  total_amount Float
-  status       OrderStatus @default(PENDING)
-  payment      Payment?
-  is_archived  Boolean     @default(false)
-  created_at   DateTime    @default(now())
-  updated_at   DateTime    @updatedAt
+  id               String      @id @default(uuid()) @map("_id")
+  user_id          String
+  user             User        @relation(fields: [user_id], references: [id])
+  items            OrderItem[]
+  total_amount     Float
+  status           OrderStatus @default(PENDING)
+  payment          Payment?
+  shipping_address String?
+  customer_phone   String?
+  customer_name    String?
+  notes            String?
+  payment_method   String?
+  is_archived      Boolean     @default(false)
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
 
   @@index([user_id])
   @@index([user_id, is_archived])

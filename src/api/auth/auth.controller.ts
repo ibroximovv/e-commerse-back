@@ -19,6 +19,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 
@@ -58,10 +60,40 @@ export class AuthController {
   @ApiOperation({ summary: 'Log in with email & password' })
   @ApiResponse({
     status: 200,
-    description: 'Access token and refresh token generated',
+    description: 'User details, access token and refresh token generated',
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request OTP code to reset forgotten password' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset code sent to email',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset forgotten password using 6-digit OTP code' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successfully',
+  })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log out current user (stateless)' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  logout() {
+    return this.authService.logout();
   }
 
   @Post('refresh')

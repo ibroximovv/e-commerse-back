@@ -92,6 +92,22 @@ export class MailService implements OnModuleInit {
     );
   }
 
+  async sendPasswordResetCode(email: string, code: string, ttlMinutes = 10) {
+    return this.sendSmsToMail(
+      email,
+      'Password Reset Code',
+      `Your password reset code is: ${code}. It expires in ${ttlMinutes} minutes.`,
+      `<div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 5px; max-width: 600px;">
+        <h2 style="color: #333;">Password Reset Request</h2>
+        <p>You requested to reset your password. Use the verification code below to proceed:</p>
+        <div style="font-size: 30px; font-weight: bold; color: #FF5722; padding: 10px; border: 1px dashed #FF5722; display: inline-block; margin: 15px 0; letter-spacing: 6px;">
+          ${code}
+        </div>
+        <p style="color: #777; font-size: 12px;">This code expires in ${ttlMinutes} minutes. If you did not request a password reset, please secure your account immediately.</p>
+      </div>`,
+    );
+  }
+
   /** nodemailer rejects with plain Error objects carrying an SMTP `code`. */
   private toMailError(error: unknown): { code?: string; message: string } {
     const err = error as { code?: unknown; message?: unknown } | null;

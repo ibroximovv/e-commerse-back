@@ -67,9 +67,15 @@ export const translations: Record<string, Record<string, string>> = {
       'Elektron pochta muvaffaqiyatli tasdiqlandi.',
     'Too many invalid attempts. Please request a new code':
       "Juda ko'p noto'g'ri urinish. Iltimos, yangi kod so'rang.",
-    'Failed to send verification email':
-      "Tasdiqlash xatini yuborib bo'lmadi. Iltimos, keyinroq urinib ko'ring.",
     'Invalid refresh token': 'Refresh token yaroqsiz.',
+    'Password reset code sent to email': 'Parolni tiklash kodi elektron pochtangizga yuborildi.',
+    'Password reset successfully': 'Parol muvaffaqiyatli tiklandi.',
+    'Logged out successfully': 'Tizimdan muvaffaqiyatli chiqildi.',
+    'File uploaded successfully': 'Fayl muvaffaqiyatli yuklandi.',
+    'File deleted successfully': "Fayl muvaffaqiyatli o'chirildi.",
+    'Payment processed successfully': "To'lov muvaffaqiyatli amalga oshirildi.",
+    'Order not found': 'Buyurtma topilmadi.',
+    'Only PENDING orders can be cancelled by customers': 'Faqat kutilayotgan (PENDING) buyurtmalar mijoz tomonidan bekor qilinishi mumkin.',
   },
   ru: {
     // Entities / Words
@@ -135,9 +141,15 @@ export const translations: Record<string, Record<string, string>> = {
     'Email verified successfully': 'Электронная почта успешно подтверждена.',
     'Too many invalid attempts. Please request a new code':
       'Слишком много неверных попыток. Пожалуйста, запросите новый код.',
-    'Failed to send verification email':
-      'Не удалось отправить письмо с кодом. Пожалуйста, попробуйте позже.',
     'Invalid refresh token': 'Недействительный refresh token.',
+    'Password reset code sent to email': 'Код для сброса пароля отправлен на вашу почту.',
+    'Password reset successfully': 'Пароль успешно сброшен.',
+    'Logged out successfully': 'Вы успешно вышли из системы.',
+    'File uploaded successfully': 'Файл успешно загружен.',
+    'File deleted successfully': 'Файл успешно удален.',
+    'Payment processed successfully': 'Оплата прошла успешно.',
+    'Order not found': 'Заказ не найден.',
+    'Only PENDING orders can be cancelled by customers': 'Только заказы в статусе PENDING могут быть отменены клиентом.',
   },
   en: {
     // Default language, keys map 1:1, but included for completeness

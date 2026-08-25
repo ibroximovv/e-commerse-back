@@ -6,7 +6,7 @@ import {
   Param,
   Delete,
   UseGuards,
-  ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,6 +16,8 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersQueryDto } from './dto/users-query.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -35,11 +37,20 @@ export class UsersController {
     return this.usersService.findOne(userId);
   }
 
+  @Get('stats')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Get user counts and role breakdown (Admin only)' })
+  getStats() {
+    return this.usersService.getStats();
+  }
+
   @Get()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'List all users (Admin only)' })
-  findAll() {
-    return this.usersService.findAll();
+  @ApiOperation({
+    summary: 'List users with pagination, role filter and search (Admin only)',
+  })
+  findAll(@Query() query: UsersQueryDto) {
+    return this.usersService.search(query);
   }
 
   @Get(':id')
@@ -56,6 +67,13 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(userId, updateUserDto);
+  }
+
+  @Patch(':id/role')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Change user role between ADMIN and USER (Admin only)' })
+  updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    return this.usersService.updateRole(id, dto.role);
   }
 
   @Patch(':id')

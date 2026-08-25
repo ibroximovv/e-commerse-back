@@ -19,6 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { CheckoutDto } from './dto/checkout.dto';
+import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -34,9 +36,15 @@ export class OrdersController {
 
   @Post('checkout')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Checkout current user cart and place an order' })
-  checkout(@CurrentUser('sub') userId: string) {
-    return this.ordersService.checkout(userId);
+  @ApiOperation({
+    summary: 'Checkout current user cart and place an order',
+    description: 'Optionally pass shipping address, phone, name, notes, and payment method.',
+  })
+  checkout(
+    @CurrentUser('sub') userId: string,
+    @Body() dto?: CheckoutDto,
+  ) {
+    return this.ordersService.checkout(userId, dto);
   }
 
   @Get()
@@ -57,9 +65,11 @@ export class OrdersController {
 
   @Get('admin/all')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get all orders in system (Admin only)' })
-  findAllAdmin() {
-    return this.ordersService.findAllAdmin();
+  @ApiOperation({
+    summary: 'Get all orders in system with pagination & filters (Admin only)',
+  })
+  findAllAdmin(@Query() query: AdminOrdersQueryDto) {
+    return this.ordersService.findAllAdmin(query);
   }
 
   @Get(':id')
@@ -67,6 +77,15 @@ export class OrdersController {
   findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
     const isAdmin = currentUser.role === Role.ADMIN;
     return this.ordersService.findOne(id, currentUser.sub, isAdmin);
+  }
+
+  @Patch(':id/cancel')
+  @ApiOperation({
+    summary: 'Cancel an order (customer can cancel PENDING, admin can cancel any)',
+  })
+  cancelOrder(@Param('id') id: string, @CurrentUser() currentUser: any) {
+    const isAdmin = currentUser.role === Role.ADMIN;
+    return this.ordersService.cancelOrder(id, currentUser.sub, isAdmin);
   }
 
   @Patch(':id/archive')

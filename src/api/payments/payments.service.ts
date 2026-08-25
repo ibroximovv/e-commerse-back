@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { PaymentStatus, OrderStatus } from '@prisma/client';
+import { PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
+import { PaymentsQueryDto } from './dto/payments-query.dto';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -97,5 +98,61 @@ export class PaymentsService {
     }
 
     return order.payment;
+  }
+
+  async findAllAdmin(query: PaymentsQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 100);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PaymentWhereInput = {};
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.provider) {
+      where.provider = { contains: query.provider.trim(), mode: 'insensitive' };
+    }
+
+    if (query.search) {
+      const term = query.search.trim();
+      where.OR = [
+        { transaction_id: { contains: term, mode: 'insensitive' } },
+        { order_id: { contains: term, mode: 'insensitive' } },
+        { provider: { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    const sortOrder = query.sortOrder ?? 'desc';
+
+    const [data, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { created_at: sortOrder },
+        include: {
+          order: {
+            include: {
+              user: {
+                select: { id: true, email: true, full_name: true },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 0,
+      },
+    };
   }
 }

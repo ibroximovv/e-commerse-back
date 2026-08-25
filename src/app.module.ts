@@ -13,6 +13,7 @@ import { CartsModule } from './api/carts/carts.module';
 import { OrdersModule } from './api/orders/orders.module';
 import { PaymentsModule } from './api/payments/payments.module';
 import { UploadModule } from './api/upload/upload.module';
+import { DashboardModule } from './api/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UploadModule } from './api/upload/upload.module';
     OrdersModule,
     PaymentsModule,
     UploadModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
