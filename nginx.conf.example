@@ -1,0 +1,64 @@
+# ==============================================================================
+# Nginx - backend API uchun alohida sub-domen
+# Serverdagi joylashuvi: /etc/nginx/sites-available/api.oco.uz.conf
+#
+#   sudo ln -s /etc/nginx/sites-available/api.oco.uz.conf /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d api.oco.uz
+#
+# certbot 443/SSL blokini shu faylga o'zi qo'shadi.
+# ==============================================================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.oco.uz;
+
+    # Rasm yuklash uchun (upload limiti backenddagi 5MB dan katta bo'lsin)
+    client_max_body_size 20M;
+
+    access_log /var/log/nginx/api.oco.uz.access.log;
+    error_log  /var/log/nginx/api.oco.uz.error.log;
+
+    # Let's Encrypt tekshiruvi. Bu blok bo'lmasa so'rov pastdagi `location /`
+    # ga tushib, Node'ga proxy qilinadi va Node 404 qaytaradi -> certbot yiqiladi.
+    # `^~` prefiksi bu blok boshqalaridan ustun turishini kafolatlaydi.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+        default_type "text/plain";
+    }
+
+    # Yuklangan fayllar. Nginx to'g'ridan-to'g'ri diskdan beradi (Node'ga tegmaydi).
+    #
+    # DIQQAT: upload.controller.ts fayl kengaytmasini foydalanuvchi yuborgan
+    # nomdan oladi, shuning uchun .html/.svg yuklab XSS qilish mumkin.
+    # Quyidagi ikki qator shuni to'sadi - kod tuzatilgunicha olib tashlamang.
+    location /uploads/ {
+        alias /var/www/e-commerse-back/uploads/;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Disposition "attachment" always;
+        expires 7d;
+        access_log off;
+    }
+
+    # Swagger hujjatlari ochiq qolmasin - kerak bo'lsa shu blokni o'chiring.
+    location /api/docs {
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
