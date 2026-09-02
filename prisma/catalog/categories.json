@@ -1,0 +1,69 @@
+{
+  "source": "Каталог 2026-III (ООО «OCO»), стр. 2 - Оглавление",
+  "categories": [
+    {
+      "name": "Автоматические насосы",
+      "slug": "avtomaticheskie-nasosy",
+      "description": "Автоматические водяные насосы с встроенным блоком управления: серии 1WZB, PW, XP и SMART PUMP.",
+      "sort_order": 1,
+      "is_featured": true,
+      "parent_id": null
+    },
+    {
+      "name": "Погружные насосы",
+      "slug": "pogrujnye-nasosy",
+      "description": "Погружные дренажные и фекальные водяные насосы серии QDX в медном и алюминиевом исполнении.",
+      "sort_order": 2,
+      "is_featured": true,
+      "parent_id": null
+    },
+    {
+      "name": "Поверхностные насосы",
+      "slug": "poverhnostnye-nasosy",
+      "description": "Поверхностные и центробежные водяные насосы серий QB, CPM и JET.",
+      "sort_order": 3,
+      "is_featured": true,
+      "parent_id": null
+    },
+    {
+      "name": "Автоматические регуляторы",
+      "slug": "avtomaticheskie-regulyatory",
+      "description": "Автоматические регуляторы (контроллеры) давления для водяных насосов.",
+      "sort_order": 4,
+      "is_featured": false,
+      "parent_id": null
+    },
+    {
+      "name": "Циркуляционные насосы",
+      "slug": "tsirkulyatsionnye-nasosy",
+      "description": "Циркуляционные и рециркуляционные насосы для систем отопления и горячего водоснабжения.",
+      "sort_order": 5,
+      "is_featured": false,
+      "parent_id": null
+    },
+    {
+      "name": "Расширительный бак",
+      "slug": "rasshiritelnyy-bak",
+      "description": "Расширительные баки с мембраной EPDM объёмом от 8 до 50 литров.",
+      "sort_order": 6,
+      "is_featured": false,
+      "parent_id": null
+    },
+    {
+      "name": "Инструменты",
+      "slug": "instrumenty",
+      "description": "Сварочные аппараты и электродвигатели.",
+      "sort_order": 7,
+      "is_featured": false,
+      "parent_id": null
+    },
+    {
+      "name": "Стабилизаторы",
+      "slug": "stabilizatory",
+      "description": "Релейные стабилизаторы напряжения DNB.",
+      "sort_order": 8,
+      "is_featured": false,
+      "parent_id": null
+    }
+  ]
+}

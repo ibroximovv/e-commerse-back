@@ -93,6 +93,12 @@ export class CartsService {
       );
     }
 
+    if (product.price_on_request) {
+      throw new BadRequestException(
+        'Price for this product is available on request. Please contact the seller',
+      );
+    }
+
     if (product.stock < quantity) {
       throw new BadRequestException('Not enough stock available');
     }
@@ -141,6 +147,12 @@ export class CartsService {
 
     if (!product) {
       throw new NotFoundException('Product not found');
+    }
+
+    if (product.price_on_request) {
+      throw new BadRequestException(
+        'Price for this product is available on request. Please contact the seller',
+      );
     }
 
     if (product.stock < quantity) {

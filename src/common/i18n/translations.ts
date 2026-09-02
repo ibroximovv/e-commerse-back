@@ -38,6 +38,15 @@ export const translations: Record<string, Record<string, string>> = {
     'Product not found': 'Mahsulot topilmadi.',
     'Review not found': 'Izoh topilmadi.',
     'Not enough stock available': "Omborda yetarli mahsulot yo'q.",
+    'Price for this product is available on request. Please contact the seller':
+      'Bu mahsulotning narxi kelishilgan holda beriladi. Iltimos, sotuvchiga murojaat qiling.',
+    'You cannot delete your own account': "O'z hisobingizni o'chira olmaysiz.",
+    'You cannot remove the ADMIN role from your own account':
+      "O'z hisobingizdan ADMIN rolini olib tashlay olmaysiz.",
+    'Cannot remove the last ADMIN account. Promote another user to ADMIN first':
+      "Oxirgi ADMIN hisobini olib tashlab bo'lmaydi. Avval boshqa foydalanuvchini ADMIN qiling.",
+    'If the account exists, a password reset code has been sent':
+      "Agar bunday hisob mavjud bo'lsa, parolni tiklash kodi yuborildi.",
     'Cart is empty': "Savat bo'sh.",
 
     // Errors & Messages
@@ -68,14 +77,16 @@ export const translations: Record<string, Record<string, string>> = {
     'Too many invalid attempts. Please request a new code':
       "Juda ko'p noto'g'ri urinish. Iltimos, yangi kod so'rang.",
     'Invalid refresh token': 'Refresh token yaroqsiz.',
-    'Password reset code sent to email': 'Parolni tiklash kodi elektron pochtangizga yuborildi.',
+    'Password reset code sent to email':
+      'Parolni tiklash kodi elektron pochtangizga yuborildi.',
     'Password reset successfully': 'Parol muvaffaqiyatli tiklandi.',
     'Logged out successfully': 'Tizimdan muvaffaqiyatli chiqildi.',
     'File uploaded successfully': 'Fayl muvaffaqiyatli yuklandi.',
     'File deleted successfully': "Fayl muvaffaqiyatli o'chirildi.",
     'Payment processed successfully': "To'lov muvaffaqiyatli amalga oshirildi.",
     'Order not found': 'Buyurtma topilmadi.',
-    'Only PENDING orders can be cancelled by customers': 'Faqat kutilayotgan (PENDING) buyurtmalar mijoz tomonidan bekor qilinishi mumkin.',
+    'Only PENDING orders can be cancelled by customers':
+      'Faqat kutilayotgan (PENDING) buyurtmalar mijoz tomonidan bekor qilinishi mumkin.',
   },
   ru: {
     // Entities / Words
@@ -115,6 +126,16 @@ export const translations: Record<string, Record<string, string>> = {
     'Product not found': 'Товар не найден.',
     'Review not found': 'Отзыв не найден.',
     'Not enough stock available': 'Недостаточно товара на складе.',
+    'Price for this product is available on request. Please contact the seller':
+      'Цена на этот товар предоставляется по запросу. Пожалуйста, свяжитесь с продавцом.',
+    'You cannot delete your own account':
+      'Вы не можете удалить свою учётную запись.',
+    'You cannot remove the ADMIN role from your own account':
+      'Вы не можете снять роль ADMIN со своей учётной записи.',
+    'Cannot remove the last ADMIN account. Promote another user to ADMIN first':
+      'Нельзя убрать последнюю учётную запись ADMIN. Сначала назначьте администратором другого пользователя.',
+    'If the account exists, a password reset code has been sent':
+      'Если такая учётная запись существует, код для сброса пароля отправлен.',
     'Cart is empty': 'Корзина пуста.',
 
     // Errors & Messages
@@ -142,14 +163,16 @@ export const translations: Record<string, Record<string, string>> = {
     'Too many invalid attempts. Please request a new code':
       'Слишком много неверных попыток. Пожалуйста, запросите новый код.',
     'Invalid refresh token': 'Недействительный refresh token.',
-    'Password reset code sent to email': 'Код для сброса пароля отправлен на вашу почту.',
+    'Password reset code sent to email':
+      'Код для сброса пароля отправлен на вашу почту.',
     'Password reset successfully': 'Пароль успешно сброшен.',
     'Logged out successfully': 'Вы успешно вышли из системы.',
     'File uploaded successfully': 'Файл успешно загружен.',
     'File deleted successfully': 'Файл успешно удален.',
     'Payment processed successfully': 'Оплата прошла успешно.',
     'Order not found': 'Заказ не найден.',
-    'Only PENDING orders can be cancelled by customers': 'Только заказы в статусе PENDING могут быть отменены клиентом.',
+    'Only PENDING orders can be cancelled by customers':
+      'Только заказы в статусе PENDING могут быть отменены клиентом.',
   },
   en: {
     // Default language, keys map 1:1, but included for completeness

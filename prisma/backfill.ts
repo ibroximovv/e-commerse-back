@@ -126,6 +126,8 @@ async function backfillProducts() {
       if (doc.brand === undefined) set.brand = null;
       if (doc.tags === undefined) set.tags = [];
       if (doc.discount_price === undefined) set.discount_price = null;
+      if (doc.price === undefined) set.price = 0;
+      if (doc.price_on_request === undefined) set.price_on_request = false;
       if (doc.is_top === undefined) set.is_top = false;
       if (doc.is_featured === undefined) set.is_featured = false;
 

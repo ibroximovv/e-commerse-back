@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { BaseService } from '../../common/services/base.service';
 import { PrismaService } from '../../database/prisma.service';
 import { User, Prisma, Role } from '@prisma/client';
@@ -76,12 +76,56 @@ export class UsersService extends BaseService<
     };
   }
 
-  async updateRole(id: string, role: Role): Promise<User> {
-    await this.findOne(id);
+  /**
+   * Rolni almashtiradi. API orqali ADMIN yaratishning boshqa yo'li yo'q, shuning
+   * uchun oxirgi adminni USER ga tushirish adminkani butunlay yopib qo'yardi -
+   * bunga yo'l qo'ymaymiz.
+   */
+  async updateRole(id: string, role: Role, actorId?: string): Promise<User> {
+    const target = await this.findOne(id);
+
+    if (target.role === Role.ADMIN && role !== Role.ADMIN) {
+      if (actorId && actorId === id) {
+        throw new BadRequestException(
+          'You cannot remove the ADMIN role from your own account',
+        );
+      }
+      await this.assertNotLastAdmin(id);
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: { role },
     });
+  }
+
+  /**
+   * Foydalanuvchini o'chiradi. Admin o'zini yoki oxirgi adminni o'chira olmaydi.
+   */
+  async removeUser(id: string, actorId?: string): Promise<User> {
+    const target = await this.findOne(id);
+
+    if (actorId && actorId === id) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+
+    if (target.role === Role.ADMIN) {
+      await this.assertNotLastAdmin(id);
+    }
+
+    return this.prisma.user.delete({ where: { id } });
+  }
+
+  private async assertNotLastAdmin(id: string) {
+    const otherAdmins = await this.prisma.user.count({
+      where: { role: Role.ADMIN, id: { not: id } },
+    });
+
+    if (otherAdmins === 0) {
+      throw new BadRequestException(
+        'Cannot remove the last ADMIN account. Promote another user to ADMIN first',
+      );
+    }
   }
 
   async getStats() {

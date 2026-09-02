@@ -10,6 +10,19 @@ import { POPULARITY_WEIGHTS, round2 } from '../products/products.pricing';
 import { CheckoutDto } from './dto/checkout.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 
+/**
+ * `?end_date=2026-12-31` kabi vaqtsiz sana `00:00:00` ga aylanadi va o'sha kunning
+ * buyurtmalari filtrdan tushib qolardi - shuning uchun kun oxiriga suramiz.
+ * Vaqt ko'rsatilgan bo'lsa (`...T10:00:00Z`) qiymat o'zgarmaydi.
+ */
+function endOfDay(value: string): Date {
+  const parsed = new Date(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    parsed.setHours(23, 59, 59, 999);
+  }
+  return parsed;
+}
+
 const ALLOWED_ORDER_SORT_FIELDS = [
   'created_at',
   'updated_at',
@@ -49,6 +62,12 @@ export class OrdersService {
         if (product.is_archived) {
           throw new BadRequestException(
             `Product "${product.name}" is archived and cannot be ordered`,
+          );
+        }
+
+        if (product.price_on_request) {
+          throw new BadRequestException(
+            `Price for "${product.name}" is available on request and it cannot be ordered online`,
           );
         }
 
@@ -301,7 +320,7 @@ export class OrdersService {
         where.created_at.gte = new Date(query.start_date);
       }
       if (query.end_date) {
-        where.created_at.lte = new Date(query.end_date);
+        where.created_at.lte = endOfDay(query.end_date);
       }
     }
 

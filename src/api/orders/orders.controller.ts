@@ -38,12 +38,10 @@ export class OrdersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Checkout current user cart and place an order',
-    description: 'Optionally pass shipping address, phone, name, notes, and payment method.',
+    description:
+      'Optionally pass shipping address, phone, name, notes, and payment method.',
   })
-  checkout(
-    @CurrentUser('sub') userId: string,
-    @Body() dto?: CheckoutDto,
-  ) {
+  checkout(@CurrentUser('sub') userId: string, @Body() dto?: CheckoutDto) {
     return this.ordersService.checkout(userId, dto);
   }
 
@@ -81,7 +79,8 @@ export class OrdersController {
 
   @Patch(':id/cancel')
   @ApiOperation({
-    summary: 'Cancel an order (customer can cancel PENDING, admin can cancel any)',
+    summary:
+      'Cancel an order (customer can cancel PENDING, admin can cancel any)',
   })
   cancelOrder(@Param('id') id: string, @CurrentUser() currentUser: any) {
     const isAdmin = currentUser.role === Role.ADMIN;

@@ -10,10 +10,7 @@ import {
   NotFoundException,
   UseGuards,
 } from '@nestjs/common';
-import {
-  FileInterceptor,
-  FilesInterceptor,
-} from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -121,7 +118,8 @@ export class UploadController {
 
   @Delete()
   @ApiOperation({
-    summary: 'Delete uploaded file by relative path (e.g. ?path=uploads/xxx.png)',
+    summary:
+      'Delete uploaded file by relative path (e.g. ?path=uploads/xxx.png)',
   })
   @ApiQuery({
     name: 'path',

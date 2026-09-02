@@ -16,7 +16,8 @@ export class DashboardController {
   @Get('stats')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Get comprehensive e-commerce statistics & dashboard analytics (Admin only)',
+    summary:
+      'Get comprehensive e-commerce statistics & dashboard analytics (Admin only)',
   })
   getStats() {
     return this.dashboardService.getStats();

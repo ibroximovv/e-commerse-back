@@ -63,6 +63,9 @@ model Category {
 type ProductAttribute {
   key   String
   value String
+  // O'lchov birligi: "W", "m", "m3/h", "mm", "V", "kg", "l", "bar" ...
+  // Kalitdan ajratilgani uchun fasetlarda "Quvvat" bitta guruh bo'lib qoladi.
+  unit  String?
 }
 
 model Product {
@@ -73,7 +76,10 @@ model Product {
   description String?
   brand       String?
   tags        String[]           @default([])
-  price       Float
+  price       Float              @default(0)
+  // Narx kelishilgan holda beriladi (katalogda narx ko'rsatilmagan tovarlar).
+  // true bo'lsa: `price`/`final_price` 0 bo'ladi va mahsulot savatga/buyurtmaga tushmaydi.
+  price_on_request Boolean            @default(false)
   // Aksiya narxi. Bo'sh bo'lsa - chegirma yo'q.
   discount_price   Float?
   // price/discount_price dan hosil qilinadi. Filtr va sortlash SHU maydon ustida ishlaydi.
@@ -121,6 +127,7 @@ model Product {
   @@index([is_archived, is_featured])
   @@index([is_archived, discount_percent])
   @@index([is_archived, popularity_score])
+  @@index([is_archived, price_on_request])
   @@index([category_id, is_archived, final_price])
   @@index([category_id, is_archived, popularity_score])
 }

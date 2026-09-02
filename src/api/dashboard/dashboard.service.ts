@@ -17,6 +17,7 @@ export class DashboardService {
       archivedProducts,
       outOfStockProducts,
       lowStockProducts,
+      priceOnRequestProducts,
       recentOrders,
       topProducts,
     ] = await Promise.all([
@@ -36,9 +37,16 @@ export class DashboardService {
       this.prisma.user.count({ where: { is_verified: true } }),
       this.prisma.product.count({ where: { is_archived: false } }),
       this.prisma.product.count({ where: { is_archived: true } }),
-      this.prisma.product.count({ where: { is_archived: false, stock: 0 } }),
+      // Narxi kelishiladigan tovarlarning zaxirasi ataylab 0 - ular "tugagan"
+      // emas, shuning uchun alohida sanaladi
+      this.prisma.product.count({
+        where: { is_archived: false, stock: 0, price_on_request: false },
+      }),
       this.prisma.product.count({
         where: { is_archived: false, stock: { gt: 0, lte: 5 } },
+      }),
+      this.prisma.product.count({
+        where: { is_archived: false, price_on_request: true },
       }),
       this.prisma.order.findMany({
         take: 5,
@@ -71,6 +79,7 @@ export class DashboardService {
           images: true,
           sales_count: true,
           rating: true,
+          price_on_request: true,
         },
       }),
     ]);
@@ -116,11 +125,13 @@ export class DashboardService {
       }
     }
 
-    const monthly_sales = Array.from(monthlyMap.entries()).map(([month, data]) => ({
-      month,
-      revenue: round2(data.revenue),
-      orders: data.orders,
-    }));
+    const monthly_sales = Array.from(monthlyMap.entries()).map(
+      ([month, data]) => ({
+        month,
+        revenue: round2(data.revenue),
+        orders: data.orders,
+      }),
+    );
 
     return {
       revenue: {
@@ -133,6 +144,7 @@ export class DashboardService {
         archived: archivedProducts,
         out_of_stock: outOfStockProducts,
         low_stock: lowStockProducts,
+        price_on_request: priceOnRequestProducts,
       },
       users: {
         total_users: totalUsers,

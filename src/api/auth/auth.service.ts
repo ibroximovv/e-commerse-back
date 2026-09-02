@@ -219,18 +219,18 @@ export class AuthService implements OnModuleDestroy {
     const email = this.normalizeEmail(dto.email);
 
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new NotFoundException('User not found');
+
+    // Javob har doim bir xil: aks holda bu endpoint "bu email ro'yxatdan
+    // o'tganmi?" degan savolga javob beruvchi vositaga aylanadi.
+    // Kod faqat mavjud va tasdiqlangan hisobga yuboriladi.
+    if (user?.is_verified) {
+      this.assertNotOnResetCooldown(email);
+      await this.sendPasswordResetOtp(email);
     }
 
-    if (!user.is_verified) {
-      throw new BadRequestException('Account not verified');
-    }
-
-    this.assertNotOnResetCooldown(email);
-    await this.sendPasswordResetOtp(email);
-
-    return { message: 'Password reset code sent to email' };
+    return {
+      message: 'If the account exists, a password reset code has been sent',
+    };
   }
 
   async resetPassword(dto: ResetPasswordDto) {

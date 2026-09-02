@@ -101,6 +101,16 @@ export class ProductsFilterQueryDto extends PaginationQueryDto {
   @IsOptional()
   max_price?: number;
 
+  @ApiPropertyOptional({
+    description:
+      "Narxi bo'yicha filtr: `false` - faqat narxi bor tovarlar, `true` - faqat " +
+      '"narx kelishilgan holda" tovarlar. Yuborilmasa ikkalasi ham chiqadi.',
+  })
+  @ToBoolean()
+  @IsBoolean()
+  @IsOptional()
+  price_on_request?: boolean;
+
   @ApiPropertyOptional({ description: 'Faqat chegirmadagi mahsulotlar.' })
   @ToBoolean()
   @IsBoolean()

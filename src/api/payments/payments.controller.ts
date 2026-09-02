@@ -38,7 +38,8 @@ export class PaymentsController {
   @Get('admin/all')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Get all payment transactions with pagination & filters (Admin only)',
+    summary:
+      'Get all payment transactions with pagination & filters (Admin only)',
   })
   findAllAdmin(@Query() query: PaymentsQueryDto) {
     return this.paymentsService.findAllAdmin(query);

@@ -14,6 +14,7 @@ This guide details commands, directory structures, and code patterns for this Ne
 - Validate Prisma schema: `npx prisma validate`
 - Generate Prisma Client: `npx prisma generate`
 - Seed the database: `npx prisma db seed`
+- Import the OCO print catalog: `npm run db:import:catalog` (add `-- --dry-run` first)
 
 ---
 
@@ -40,14 +41,21 @@ This guide details commands, directory structures, and code patterns for this Ne
 - **Stateless Tokens:** JWT access and refresh tokens are signed and verified without database state.
 - **Stateless OTP Verification:** Signups send a 6-digit code (generated with `crypto.randomInt`) via Nodemailer. The OTP codes and their resend cooldowns are cached in-memory inside `AuthService` using a Map, with a periodic sweep of expired entries. A code allows 5 wrong attempts before it is discarded; the cooldown also applies to `register`, and every email is normalized to lowercase before lookup.
 - **Mail Delivery:** The only delivery channel is email — there is no SMS provider. `MailService` (`src/common/services/mail.service.ts`, exported by the global `MailModule`) uses `nodemailer.createTransport({ service: 'gmail' })`, so the only credentials are `MAIL_USER` and a **Google App Password** in `MAIL_PASS` — no SMTP host/port/secure settings. Spaces in the app password are stripped automatically. `sendSmsToMail(email, subject, text, html?)` is the general send method; `sendVerificationCode()` wraps it for OTP mails. The connection is verified at startup, and send failures throw instead of being swallowed. See [.env.example](file:///Users/omadbek/new-project/e-commerse/.env.example).
-- **User Role Management:** Users have a `role` of `ADMIN` or `USER`. Endpoints are protected by `JwtAuthGuard` and `RolesGuard`.
+- **User Role Management:** Users have a `role` of `ADMIN` or `USER`. Endpoints are protected by `JwtAuthGuard` and `RolesGuard`. `UsersService` refuses to demote or delete the **last remaining ADMIN**, and an admin cannot demote or delete their own account — without this the panel can be locked out permanently, since the only other way to mint an admin is the seed.
+- **No account enumeration:** `POST /api/auth/forgot-password` returns the same message whether or not the email exists; the OTP is only sent to a real, verified account.
 - **Response Safety:** The `ResponseInterceptor` runs all return values through the translation helper which automatically strips out `password` fields from JSON payloads globally.
 
-### 4. Code Reusability & DTOs
+### 4. Pricing & Catalog Data
+- **Price on request:** `Product.price_on_request` marks goods sold at a negotiated price (the printed OCO catalog lists no prices). When it is `true` the service forces `price`/`final_price` to `0`, drops any discount, and `CartsService`/`OrdersService` reject the product with a `400`. These products are also excluded from the `facets.price` range, and `?price_on_request=` filters them either way.
+- **Attribute units:** `ProductAttribute` is `{ key, value, unit? }`. Keep the unit out of the key (`{ key: 'Мощность', value: '250', unit: 'Вт' }`, not `key: 'Мощность,W'`) so one spec stays a single facet group and numeric values sort correctly.
+- **SKU:** normalized to trimmed UPPERCASE on write and checked case-insensitively. Uniqueness is enforced in `ProductsService`, **not** by a DB index — a Prisma/MongoDB `@unique` on the optional `sku` would reject a second document with `sku: null`.
+- **Catalog import:** the printed catalog lives in `prisma/catalog/` (`categories.json`, `products.json`, `README.md`). `prisma/import-catalog.ts` is idempotent, keyed on `sku` then `slug`, and a plain re-run refreshes only catalog fields — it never overwrites prices, stock, flags, or sales stats unless `--reset-pricing` is passed.
+
+### 5. Code Reusability & DTOs
 - Services doing standard CRUD should inherit from [BaseService](file:///Users/omadbek/new-project/e-commerse/src/common/services/base.service.ts).
 - Queries listing database entries should inherit from [PaginationQueryDto](file:///Users/omadbek/new-project/e-commerse/src/common/dto/pagination-query.dto.ts).
 
-### 5. Localization (`?ln`)
+### 6. Localization (`?ln`)
 - Supported languages: `uz`, `ru`, `en`. Default is `uz`.
 - Fallback chain: The `ResponseInterceptor` and `HttpExceptionFilter` resolve the selected language via `request.query.ln` $\rightarrow$ `request.user.language` (extracted from the JWT token) $\rightarrow$ `'uz'`.
 - Even on public routes, if an `Authorization` header is present, the language is parsed from the JWT payload.

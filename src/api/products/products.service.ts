@@ -87,19 +87,35 @@ export class ProductsService extends BaseService<
   // ---------------------------------------------------------------------------
 
   async createProduct(dto: CreateProductDto): Promise<Product> {
-    const { category_id, slug, sku, discount_price, price, ...rest } = dto;
+    const {
+      category_id,
+      slug,
+      sku,
+      discount_price,
+      price,
+      price_on_request,
+      ...rest
+    } = dto;
 
     await this.assertCategoryUsable(category_id);
-    this.assertDiscountValid(price, discount_price);
-    if (sku) await this.assertSkuIsFree(sku);
+
+    // "Narx kelishilgan holda" tovarda narx ham, chegirma ham saqlanmaydi
+    const onRequest = price_on_request ?? false;
+    const nextPrice = onRequest ? 0 : price;
+    const nextDiscount = onRequest ? null : (discount_price ?? null);
+    this.assertDiscountValid(nextPrice, nextDiscount);
+
+    const normalizedSku = normalizeSku(sku);
+    if (normalizedSku) await this.assertSkuIsFree(normalizedSku);
 
     return this.prisma.product.create({
       data: {
         ...rest,
-        price,
-        discount_price: discount_price ?? null,
-        ...computePriceFields(price, discount_price),
-        sku: sku ?? null,
+        price: nextPrice,
+        price_on_request: onRequest,
+        discount_price: nextDiscount,
+        ...computePriceFields(nextPrice, nextDiscount),
+        sku: normalizedSku,
         slug: await this.resolveSlug(slug ?? dto.name),
         category_id,
       },
@@ -109,33 +125,47 @@ export class ProductsService extends BaseService<
 
   async updateProduct(id: string, dto: UpdateProductDto): Promise<Product> {
     const current = await this.findOne(id);
-    const { category_id, slug, sku, discount_price, price, name, ...rest } =
-      dto;
+    const {
+      category_id,
+      slug,
+      sku,
+      discount_price,
+      price,
+      price_on_request,
+      name,
+      ...rest
+    } = dto;
 
     if (category_id && category_id !== current.category_id) {
       await this.assertCategoryUsable(category_id);
     }
 
-    if (sku !== undefined && sku && sku !== current.sku) {
-      await this.assertSkuIsFree(sku, id);
+    const normalizedSku = sku === undefined ? undefined : normalizeSku(sku);
+    if (normalizedSku && normalizedSku !== current.sku) {
+      await this.assertSkuIsFree(normalizedSku, id);
     }
 
     // Narx yoki chegirma o'zgarsa - ikkalasini ham qayta baholaymiz
-    const nextPrice = price ?? current.price;
-    const nextDiscount =
-      discount_price !== undefined ? discount_price : current.discount_price;
+    const onRequest = price_on_request ?? current.price_on_request;
+    const nextPrice = onRequest ? 0 : (price ?? current.price);
+    const nextDiscount = onRequest
+      ? null
+      : discount_price !== undefined
+        ? discount_price
+        : current.discount_price;
     this.assertDiscountValid(nextPrice, nextDiscount);
 
     const data: Prisma.ProductUncheckedUpdateInput = {
       ...rest,
       ...computePriceFields(nextPrice, nextDiscount),
       price: nextPrice,
+      price_on_request: onRequest,
       discount_price: nextDiscount ?? null,
     };
 
     if (name !== undefined) data.name = name;
     if (category_id !== undefined) data.category_id = category_id;
-    if (sku !== undefined) data.sku = sku || null;
+    if (normalizedSku !== undefined) data.sku = normalizedSku;
     if (slug !== undefined) {
       data.slug = await this.resolveSlug(slug || name || current.name, id);
     }
@@ -493,6 +523,10 @@ export class ProductsService extends BaseService<
       };
     }
 
+    if (query.price_on_request !== undefined) {
+      where.price_on_request = query.price_on_request;
+    }
+
     if (query.has_discount) {
       where.discount_percent = { gt: 0 };
     }
@@ -647,7 +681,9 @@ export class ProductsService extends BaseService<
     const [priceRange, categoryGroups, brandGroups, attributeSample, counts] =
       await Promise.all([
         this.prisma.product.aggregate({
-          where: whereWithoutPrice,
+          // Narxi kelishiladigan tovarlarda `final_price` 0 - ular oralig'ni
+          // pastga tortib yubormasligi uchun fasetdan chiqarib tashlanadi
+          where: { ...whereWithoutPrice, price_on_request: false },
           _min: { final_price: true },
           _max: { final_price: true },
         }),
@@ -719,23 +755,42 @@ export class ProductsService extends BaseService<
   }
 
   private aggregateAttributeFacets(
-    rows: Array<{ attributes: Array<{ key: string; value: string }> }>,
+    rows: Array<{
+      attributes: Array<{ key: string; value: string; unit?: string | null }>;
+    }>,
   ) {
-    const byKey = new Map<string, Map<string, number>>();
+    const byKey = new Map<
+      string,
+      { unit: string | null; values: Map<string, number> }
+    >();
 
     for (const row of rows) {
       for (const attribute of row.attributes ?? []) {
-        const values = byKey.get(attribute.key) ?? new Map<string, number>();
-        values.set(attribute.value, (values.get(attribute.value) ?? 0) + 1);
-        byKey.set(attribute.key, values);
+        const bucket = byKey.get(attribute.key) ?? {
+          unit: attribute.unit ?? null,
+          values: new Map<string, number>(),
+        };
+        bucket.values.set(
+          attribute.value,
+          (bucket.values.get(attribute.value) ?? 0) + 1,
+        );
+        byKey.set(attribute.key, bucket);
       }
     }
 
-    return [...byKey.entries()].map(([key, values]) => ({
+    return [...byKey.entries()].map(([key, bucket]) => ({
       key,
-      values: [...values.entries()]
+      unit: bucket.unit,
+      values: [...bucket.values.entries()]
         .map(([value, count]) => ({ value, count }))
-        .sort((a, b) => b.count - a.count),
+        // Sonli xarakteristikalar (quvvat, napor) son bo'yicha, matnlilar
+        // esa ommaboplik bo'yicha saralanadi
+        .sort((a, b) => {
+          const na = Number(a.value.replace(',', '.'));
+          const nb = Number(b.value.replace(',', '.'));
+          if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+          return b.count - a.count;
+        }),
     }));
   }
 
@@ -794,7 +849,7 @@ export class ProductsService extends BaseService<
 
   private async assertSkuIsFree(sku: string, excludeId?: string) {
     const existing = await this.prisma.product.findFirst({
-      where: { sku },
+      where: { sku: { equals: sku, mode: 'insensitive' } },
       select: { id: true },
     });
     if (existing && existing.id !== excludeId) {
@@ -815,6 +870,15 @@ export class ProductsService extends BaseService<
       'product',
     );
   }
+}
+
+/**
+ * SKU ni yagona ko'rinishga keltiradi: chetdagi bo'shliqlar olib tashlanadi va
+ * katta harfga o'giriladi. Shu sabab "apl-123" va "APL-123" bitta SKU hisoblanadi.
+ */
+function normalizeSku(sku?: string | null): string | null {
+  const trimmed = (sku ?? '').trim();
+  return trimmed ? trimmed.toUpperCase() : null;
 }
 
 export interface CollectionOptions {

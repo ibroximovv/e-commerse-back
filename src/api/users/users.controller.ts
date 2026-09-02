@@ -8,12 +8,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersQueryDto } from './dto/users-query.dto';
@@ -71,9 +66,15 @@ export class UsersController {
 
   @Patch(':id/role')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Change user role between ADMIN and USER (Admin only)' })
-  updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
-    return this.usersService.updateRole(id, dto.role);
+  @ApiOperation({
+    summary: 'Change user role between ADMIN and USER (Admin only)',
+  })
+  updateRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoleDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.usersService.updateRole(id, dto.role, actorId);
   }
 
   @Patch(':id')
@@ -86,7 +87,7 @@ export class UsersController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Delete user (Admin only)' })
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser('sub') actorId: string) {
+    return this.usersService.removeUser(id, actorId);
   }
 }

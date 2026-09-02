@@ -8,6 +8,7 @@ import {
   IsString,
   Matches,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -24,6 +25,16 @@ export class ProductAttributeDto {
   @IsString()
   @IsNotEmpty()
   value: string;
+
+  @ApiPropertyOptional({
+    example: 'W',
+    description:
+      "O'lchov birligi. Qiymatdan ajratib saqlanadi, shunda fasetlarda " +
+      '"Quvvat" bitta guruh bo\'lib qoladi va son bo\'yicha saralash mumkin.',
+  })
+  @IsString()
+  @IsOptional()
+  unit?: string;
 }
 
 export class CreateProductDto {
@@ -71,10 +82,26 @@ export class CreateProductDto {
   @IsOptional()
   tags?: string[];
 
-  @ApiProperty({ example: 999.99, description: 'Asosiy (chegirmasiz) narx' })
+  @ApiPropertyOptional({
+    example: 999.99,
+    description:
+      "Asosiy (chegirmasiz) narx. `price_on_request: true` bo'lsa yuborilmasligi mumkin - 0 bo'lib saqlanadi.",
+  })
+  @ValidateIf((dto: CreateProductDto) => dto.price_on_request !== true)
   @IsNumber()
   @Min(0)
   price: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      "Narx kelishilgan holda beriladi (katalogda narx ko'rsatilmagan tovarlar). " +
+      "true bo'lsa narx 0 saqlanadi, chegirma o'chiriladi va mahsulot savatga/buyurtmaga tushmaydi.",
+  })
+  @ToBoolean()
+  @IsBoolean()
+  @IsOptional()
+  price_on_request?: boolean;
 
   @ApiPropertyOptional({
     example: 849.99,
