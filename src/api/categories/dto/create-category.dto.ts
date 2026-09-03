@@ -1,25 +1,51 @@
 import {
   IsBoolean,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ToBoolean, ToNumber } from '../../../common/utils/transform.util';
+import {
+  HasAtLeastOneLanguage,
+  LocalizedTextDto,
+} from '../../../common/dto/localized-text.dto';
 
 export class CreateCategoryDto {
-  @ApiProperty({ example: 'Electronics' })
-  @IsString()
-  @IsNotEmpty()
-  name: string;
+  @ApiProperty({
+    type: LocalizedTextDto,
+    description:
+      "Kategoriya nomi. Kamida bitta til to'ldirilishi shart; qolganlari " +
+      "bo'sh qolsa mavjud tildan nusxalanadi.",
+    example: {
+      uz: 'Avtomatik nasoslar',
+      ru: 'Автоматические насосы',
+      en: 'Automatic pumps',
+    },
+  })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  @HasAtLeastOneLanguage()
+  name: LocalizedTextDto;
 
   @ApiPropertyOptional({
-    example: 'electronics',
+    type: LocalizedTextDto,
+    description: 'Kategoriya tavsifi (ixtiyoriy, har bir til alohida).',
+  })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  @IsOptional()
+  description?: LocalizedTextDto;
+
+  @ApiPropertyOptional({
+    example: 'avtomaticheskie-nasosy',
     description:
-      "Bo'sh qoldirilsa `name` dan avtomatik generatsiya qilinadi (kirill ham qo'llab-quvvatlanadi).",
+      "Bo'sh qoldirilsa nomdan avtomatik generatsiya qilinadi (kirill ham " +
+      "qo'llab-quvvatlanadi). Slug barcha tillar uchun yagona.",
   })
   @IsString()
   @IsOptional()
@@ -28,29 +54,15 @@ export class CreateCategoryDto {
   })
   slug?: string;
 
-  @ApiPropertyOptional({ example: 'Smartphones, gadgets and computers' })
-  @IsString()
-  @IsOptional()
-  description?: string;
-
   @ApiPropertyOptional({ example: 'uploads/category.png' })
   @IsString()
   @IsOptional()
   image?: string;
 
-  @ApiPropertyOptional({ example: 'uploads/icons/electronics.svg' })
+  @ApiPropertyOptional({ example: 'uploads/icons/pump.svg' })
   @IsString()
   @IsOptional()
   icon?: string;
-
-  @ApiPropertyOptional({
-    example: null,
-    description:
-      "Ota kategoriya ID'si. Bo'sh bo'lsa - ildiz (root) kategoriya bo'ladi.",
-  })
-  @IsString()
-  @IsOptional()
-  parent_id?: string;
 
   @ApiPropertyOptional({ default: false })
   @ToBoolean()

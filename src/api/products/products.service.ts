@@ -9,7 +9,18 @@ import { PrismaService } from '../../database/prisma.service';
 import { Prisma, Product } from '@prisma/client';
 import { CategoriesService } from '../categories/categories.service';
 import { generateUniqueSlug, slugify } from '../../common/utils/slug.util';
-import { CreateProductDto } from './dto/create-product.dto';
+import {
+  DEFAULT_LANGUAGE,
+  Lang,
+  SUPPORTED_LANGUAGES,
+  pickLocalized,
+  spreadLocalized,
+  spreadLocalizedRequired,
+} from '../../common/i18n/locale';
+import {
+  CreateProductDto,
+  ProductAttributeDto,
+} from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import {
   ProductsFilterQueryDto,
@@ -29,8 +40,15 @@ const FACET_SCAN_LIMIT = 2000;
 
 type SortInput = Prisma.ProductOrderByWithRelationInput[];
 
-/** Har bir sort preseti uchun xavfsiz `orderBy`. Foydalanuvchi baza maydonini yubora olmaydi. */
-const SORT_STRATEGIES: Record<ProductSortOption, SortInput> = {
+/**
+ * Har bir sort preseti uchun xavfsiz `orderBy`. Foydalanuvchi baza maydonini
+ * yubora olmaydi. `name_asc`/`name_desc` bu yerda yo'q - ular joriy tilga
+ * bog'liq va `buildOrderBy` da hosil qilinadi.
+ */
+const SORT_STRATEGIES: Record<
+  Exclude<ProductSortOption, 'name_asc' | 'name_desc'>,
+  SortInput
+> = {
   relevance: [
     { is_top: 'desc' },
     { popularity_score: 'desc' },
@@ -44,8 +62,6 @@ const SORT_STRATEGIES: Record<ProductSortOption, SortInput> = {
   top_rated: [{ rating: 'desc' }, { rating_count: 'desc' }],
   most_viewed: [{ view_count: 'desc' }],
   discount: [{ discount_percent: 'desc' }, { final_price: 'asc' }],
-  name_asc: [{ name: 'asc' }],
-  name_desc: [{ name: 'desc' }],
 };
 
 /** `sortBy` orqali to'g'ridan-to'g'ri ruxsat etilgan maydonlar (eski frontend bilan moslik). */
@@ -65,7 +81,13 @@ const ALLOWED_SORT_FIELDS = [
 
 const PRODUCT_LIST_INCLUDE = {
   category: {
-    select: { id: true, name: true, slug: true, parent_id: true },
+    select: {
+      id: true,
+      slug: true,
+      name_uz: true,
+      name_ru: true,
+      name_en: true,
+    },
   },
 } satisfies Prisma.ProductInclude;
 
@@ -91,6 +113,9 @@ export class ProductsService extends BaseService<
       category_id,
       slug,
       sku,
+      name,
+      description,
+      attributes,
       discount_price,
       price,
       price_on_request,
@@ -111,12 +136,15 @@ export class ProductsService extends BaseService<
     return this.prisma.product.create({
       data: {
         ...rest,
+        ...spreadLocalizedRequired('name', name),
+        ...spreadLocalized('description', description),
+        attributes: toAttributeColumns(attributes),
         price: nextPrice,
         price_on_request: onRequest,
         discount_price: nextDiscount,
         ...computePriceFields(nextPrice, nextDiscount),
         sku: normalizedSku,
-        slug: await this.resolveSlug(slug ?? dto.name),
+        slug: await this.resolveSlug(slug ?? pickAnyText(name)),
         category_id,
       },
       include: PRODUCT_LIST_INCLUDE,
@@ -129,10 +157,12 @@ export class ProductsService extends BaseService<
       category_id,
       slug,
       sku,
+      name,
+      description,
+      attributes,
       discount_price,
       price,
       price_on_request,
-      name,
       ...rest
     } = dto;
 
@@ -157,17 +187,35 @@ export class ProductsService extends BaseService<
 
     const data: Prisma.ProductUncheckedUpdateInput = {
       ...rest,
+      ...spreadLocalized('description', description),
       ...computePriceFields(nextPrice, nextDiscount),
       price: nextPrice,
       price_on_request: onRequest,
       discount_price: nextDiscount ?? null,
     };
 
-    if (name !== undefined) data.name = name;
+    if (name) {
+      // Yuborilmagan tillar joriy qiymatida qoladi
+      Object.assign(
+        data,
+        spreadLocalizedRequired('name', {
+          uz: name.uz ?? current.name_uz,
+          ru: name.ru ?? current.name_ru,
+          en: name.en ?? current.name_en,
+        }),
+      );
+    }
+
+    if (attributes !== undefined) {
+      data.attributes = toAttributeColumns(attributes);
+    }
+
     if (category_id !== undefined) data.category_id = category_id;
     if (normalizedSku !== undefined) data.sku = normalizedSku;
     if (slug !== undefined) {
-      data.slug = await this.resolveSlug(slug || name || current.name, id);
+      const source =
+        slug || (name ? pickAnyText(name) : undefined) || current.name_uz;
+      data.slug = await this.resolveSlug(source, id);
     }
 
     return this.prisma.product.update({
@@ -195,7 +243,7 @@ export class ProductsService extends BaseService<
 
     if (nextStock < 0) {
       throw new BadRequestException(
-        `Insufficient stock for product "${product.name}"`,
+        `Insufficient stock for product "${product.name_uz}"`,
       );
     }
 
@@ -219,13 +267,17 @@ export class ProductsService extends BaseService<
   // Qidiruv va filtr
   // ---------------------------------------------------------------------------
 
-  async searchAndFilter(query: ProductsFilterQueryDto, isAdmin = false) {
+  async searchAndFilter(
+    query: ProductsFilterQueryDto,
+    isAdmin = false,
+    lang: Lang = DEFAULT_LANGUAGE,
+  ) {
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 100);
     const skip = (page - 1) * limit;
 
     const where = await this.buildWhere(query, isAdmin);
-    const orderBy = this.buildOrderBy(query);
+    const orderBy = this.buildOrderBy(query, lang);
 
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
@@ -251,7 +303,7 @@ export class ProductsService extends BaseService<
         hasPreviousPage: page > 1,
         sort: this.resolveSortLabel(query),
         ...(query.with_facets
-          ? { facets: await this.buildFacets(query, isAdmin) }
+          ? { facets: await this.buildFacets(query, isAdmin, lang) }
           : {}),
       },
     };
@@ -261,8 +313,12 @@ export class ProductsService extends BaseService<
    * Filtr panelini qurish uchun mavjud qiymatlar: narx oralig'i, brendlar,
    * kategoriyalar va atributlar. `?with_facets=true` bilan `GET /api/products` ichida ham keladi.
    */
-  async getFilterOptions(query: ProductsFilterQueryDto, isAdmin = false) {
-    return this.buildFacets(query, isAdmin);
+  async getFilterOptions(
+    query: ProductsFilterQueryDto,
+    isAdmin = false,
+    lang: Lang = DEFAULT_LANGUAGE,
+  ) {
+    return this.buildFacets(query, isAdmin, lang);
   }
 
   // ---------------------------------------------------------------------------
@@ -319,14 +375,14 @@ export class ProductsService extends BaseService<
   }
 
   /**
-   * O'xshash mahsulotlar: avval shu kategoriyadan, yetmasa ota kategoriyadan
-   * to'ldiriladi. Mahsulot sahifasidagi "O'xshash mahsulotlar" bloki uchun.
+   * O'xshash mahsulotlar - shu kategoriyaning boshqa tovarlari.
+   * Katalog tekis bo'lgani uchun "qardosh kategoriya" tushunchasi yo'q.
    */
   async getRelatedProducts(id: string, limit = 10) {
     const product = await this.findOne(id);
     const take = Math.min(Math.max(limit, 1), 50);
 
-    const sameCategory = await this.prisma.product.findMany({
+    return this.prisma.product.findMany({
       where: {
         is_archived: false,
         category_id: product.category_id,
@@ -336,34 +392,6 @@ export class ProductsService extends BaseService<
       orderBy: SORT_STRATEGIES.relevance,
       include: PRODUCT_LIST_INCLUDE,
     });
-
-    if (sameCategory.length >= take) return sameCategory;
-
-    // Yetmasa - qardosh kategoriyalardan to'ldiramiz
-    const category = await this.prisma.category.findUnique({
-      where: { id: product.category_id },
-      select: { parent_id: true },
-    });
-
-    if (!category?.parent_id) return sameCategory;
-
-    const siblingIds = await this.categoriesService.getDescendantIds(
-      category.parent_id,
-    );
-
-    const excluded = [product.id, ...sameCategory.map((item) => item.id)];
-    const fillers = await this.prisma.product.findMany({
-      where: {
-        is_archived: false,
-        category_id: { in: siblingIds },
-        id: { notIn: excluded },
-      },
-      take: take - sameCategory.length,
-      orderBy: SORT_STRATEGIES.relevance,
-      include: PRODUCT_LIST_INCLUDE,
-    });
-
-    return [...sameCategory, ...fillers];
   }
 
   // ---------------------------------------------------------------------------
@@ -443,7 +471,7 @@ export class ProductsService extends BaseService<
   // Ichki yordamchilar
   // ---------------------------------------------------------------------------
 
-  private async decorateDetail(
+  private decorateDetail(
     product: Product & { category?: unknown },
     isAdmin: boolean,
   ) {
@@ -460,13 +488,8 @@ export class ProductsService extends BaseService<
         .catch(() => undefined);
     }
 
-    const breadcrumbs = await this.categoriesService.getBreadcrumbs(
-      product.category_id,
-    );
-
     return {
       ...product,
-      breadcrumbs,
       stock_status: this.resolveStockStatus(product.stock),
       is_new: this.isNew(product.created_at),
     };
@@ -503,15 +526,24 @@ export class ProductsService extends BaseService<
 
     if (query.search) {
       const term = query.search.trim();
+      // Qidiruv uchala tilda: ruscha katalogdan qidirilgan so'z o'zbekcha
+      // interfeysda ham topilishi kerak
       and.push({
         OR: [
-          { name: { contains: term, mode: 'insensitive' } },
-          { description: { contains: term, mode: 'insensitive' } },
+          ...SUPPORTED_LANGUAGES.flatMap((lang) => [
+            { [`name_${lang}`]: { contains: term, mode: 'insensitive' } },
+            {
+              [`description_${lang}`]: {
+                contains: term,
+                mode: 'insensitive',
+              },
+            },
+          ]),
           { brand: { contains: term, mode: 'insensitive' } },
           { sku: { contains: term, mode: 'insensitive' } },
           { slug: { contains: slugify(term) } },
           { tags: { has: term.toLowerCase() } },
-        ],
+        ] as Prisma.ProductWhereInput[],
       });
     }
 
@@ -541,7 +573,7 @@ export class ProductsService extends BaseService<
 
     if (query.brands?.length) {
       // `in` registrga sezgir bo'lgani uchun har bir brend uchun alohida
-      // registrga befarq `equals` ishlatamiz (`?brands=apple` ham `Apple` ni topadi)
+      // registrga befarq `equals` ishlatamiz (`?brands=oco` ham `OCO` ni topadi)
       and.push({
         OR: query.brands.map((brand) => ({
           brand: { equals: brand, mode: 'insensitive' as const },
@@ -553,12 +585,21 @@ export class ProductsService extends BaseService<
       where.tags = { hasSome: query.tags.map((tag) => tag.toLowerCase()) };
     }
 
-    // `Color:Black,Color:White,Storage:256GB` -> (Black YOKI White) VA 256GB
+    // `Power:250,Power:370,Material:Copper` -> (250 YOKI 370) VA Copper
     for (const group of this.groupAttributeFilters(query.attributes)) {
       and.push({
-        OR: group.values.map((value) => ({
-          attributes: { some: { key: group.key, value } },
-        })),
+        OR: group.values.flatMap((value) =>
+          // Faset `_en` variantini identifikator sifatida beradi, lekin qo'lda
+          // yozilgan ruscha/o'zbekcha so'rov ham ishlashi kerak
+          SUPPORTED_LANGUAGES.map((lang) => ({
+            attributes: {
+              some: {
+                [`key_${lang}`]: { equals: group.key, mode: 'insensitive' },
+                [`value_${lang}`]: { equals: value, mode: 'insensitive' },
+              },
+            },
+          })),
+        ),
       });
     }
 
@@ -591,8 +632,8 @@ export class ProductsService extends BaseService<
   }
 
   /**
-   * `category_slug` / `category_id` / `category_ids` ni yakuniy ID ro'yxatiga aylantiradi.
-   * `include_descendants` yoqilgan bo'lsa (default) - ichki kategoriyalar ham qo'shiladi.
+   * `category_slug` / `category_id` / `category_ids` ni yakuniy ID ro'yxatiga
+   * aylantiradi. Katalog tekis bo'lgani uchun avlodlarni kengaytirish yo'q.
    */
   private async resolveCategoryIds(
     query: ProductsFilterQueryDto,
@@ -608,17 +649,7 @@ export class ProductsService extends BaseService<
       );
     }
 
-    if (!explicit.length) return null;
-
-    const unique = [...new Set(explicit)];
-
-    if (query.include_descendants === false) return unique;
-
-    const expanded = await Promise.all(
-      unique.map((id) => this.categoriesService.getDescendantIds(id)),
-    );
-
-    return [...new Set(expanded.flat())];
+    return explicit.length ? [...new Set(explicit)] : null;
   }
 
   private groupAttributeFilters(attributes?: string[]) {
@@ -649,12 +680,18 @@ export class ProductsService extends BaseService<
     );
   }
 
-  private buildOrderBy(query: ProductsFilterQueryDto): SortInput {
+  private buildOrderBy(query: ProductsFilterQueryDto, lang: Lang): SortInput {
+    // Nom bo'yicha saralash joriy til ustunida bajariladi - aks holda
+    // o'zbekcha interfeysda ro'yxat ruscha alifbo tartibida chiqib qolardi
+    if (query.sort === 'name_asc') return [{ [`name_${lang}`]: 'asc' }];
+    if (query.sort === 'name_desc') return [{ [`name_${lang}`]: 'desc' }];
     if (query.sort) return SORT_STRATEGIES[query.sort];
 
     // Eski frontend `sortBy` + `sortOrder` yuborishi mumkin - faqat oq ro'yxatdagi maydonlar
     if (this.usesLegacySort(query)) {
-      return [{ [query.sortBy as string]: query.sortOrder ?? 'desc' }];
+      const field =
+        query.sortBy === 'name' ? `name_${lang}` : (query.sortBy as string);
+      return [{ [field]: query.sortOrder ?? 'desc' }];
     }
 
     return SORT_STRATEGIES.relevance;
@@ -669,7 +706,11 @@ export class ProductsService extends BaseService<
     return 'relevance';
   }
 
-  private async buildFacets(query: ProductsFilterQueryDto, isAdmin: boolean) {
+  private async buildFacets(
+    query: ProductsFilterQueryDto,
+    isAdmin: boolean,
+    lang: Lang,
+  ) {
     // Fasetlar joriy filtr ostida hisoblanadi, lekin narx oralig'i keng bo'lishi uchun
     // narx filtrisiz variant ham beriladi
     const where = await this.buildWhere(query, isAdmin);
@@ -716,7 +757,13 @@ export class ProductsService extends BaseService<
     const categoryIds = categoryGroups.map((group) => group.category_id);
     const categories = await this.prisma.category.findMany({
       where: { id: { in: categoryIds } },
-      select: { id: true, name: true, slug: true },
+      select: {
+        id: true,
+        slug: true,
+        name_uz: true,
+        name_ru: true,
+        name_en: true,
+      },
     });
     const categoryById = new Map(categories.map((item) => [item.id, item]));
 
@@ -728,12 +775,24 @@ export class ProductsService extends BaseService<
         max: priceRange._max.final_price ?? 0,
       },
       categories: categoryGroups
-        .map((group) => ({
-          id: group.category_id,
-          name: categoryById.get(group.category_id)?.name ?? null,
-          slug: categoryById.get(group.category_id)?.slug ?? null,
-          count: group._count._all,
-        }))
+        .map((group) => {
+          const category = categoryById.get(group.category_id);
+          return {
+            id: group.category_id,
+            name: category
+              ? pickLocalized(
+                  {
+                    uz: category.name_uz,
+                    ru: category.name_ru,
+                    en: category.name_en,
+                  },
+                  lang,
+                )
+              : null,
+            slug: category?.slug ?? null,
+            count: group._count._all,
+          };
+        })
         .filter((item) => item.name !== null)
         .sort((a, b) => b.count - a.count),
       brands: brandGroups
@@ -743,7 +802,7 @@ export class ProductsService extends BaseService<
           count: group._count._all,
         }))
         .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
-      attributes: this.aggregateAttributeFacets(attributeSample),
+      attributes: aggregateAttributeFacets(attributeSample, lang),
       counts: {
         in_stock: inStockCount,
         discounted: discountedCount,
@@ -752,46 +811,6 @@ export class ProductsService extends BaseService<
       // Fasetlar katta katalogda birinchi `FACET_SCAN_LIMIT` mahsulot bo'yicha hisoblanadi
       attributes_sampled: attributeSample.length >= FACET_SCAN_LIMIT,
     };
-  }
-
-  private aggregateAttributeFacets(
-    rows: Array<{
-      attributes: Array<{ key: string; value: string; unit?: string | null }>;
-    }>,
-  ) {
-    const byKey = new Map<
-      string,
-      { unit: string | null; values: Map<string, number> }
-    >();
-
-    for (const row of rows) {
-      for (const attribute of row.attributes ?? []) {
-        const bucket = byKey.get(attribute.key) ?? {
-          unit: attribute.unit ?? null,
-          values: new Map<string, number>(),
-        };
-        bucket.values.set(
-          attribute.value,
-          (bucket.values.get(attribute.value) ?? 0) + 1,
-        );
-        byKey.set(attribute.key, bucket);
-      }
-    }
-
-    return [...byKey.entries()].map(([key, bucket]) => ({
-      key,
-      unit: bucket.unit,
-      values: [...bucket.values.entries()]
-        .map(([value, count]) => ({ value, count }))
-        // Sonli xarakteristikalar (quvvat, napor) son bo'yicha, matnlilar
-        // esa ommaboplik bo'yicha saralanadi
-        .sort((a, b) => {
-          const na = Number(a.value.replace(',', '.'));
-          const nb = Number(b.value.replace(',', '.'));
-          if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-          return b.count - a.count;
-        }),
-    }));
   }
 
   private async getCollection(
@@ -803,7 +822,6 @@ export class ProductsService extends BaseService<
       ...baseQuery,
       category_id: options.categoryId,
       category_slug: options.categorySlug,
-      include_descendants: true,
       limit: Math.min(Math.max(options.limit ?? 10, 1), 50),
       page: 1,
     } as ProductsFilterQueryDto;
@@ -816,7 +834,7 @@ export class ProductsService extends BaseService<
     return this.prisma.product.findMany({
       where,
       take: query.limit,
-      orderBy: this.buildOrderBy(query),
+      orderBy: this.buildOrderBy(query, options.lang ?? DEFAULT_LANGUAGE),
       include: PRODUCT_LIST_INCLUDE,
     });
   }
@@ -872,6 +890,123 @@ export class ProductsService extends BaseService<
   }
 }
 
+interface AttributeColumns {
+  key_uz: string;
+  key_ru: string;
+  key_en: string;
+  value_uz: string;
+  value_ru: string;
+  value_en: string;
+  unit_uz: string | null;
+  unit_ru: string | null;
+  unit_en: string | null;
+}
+
+/** DTO dagi `{key: {uz,ru,en}}` ni bazadagi ustunlarga yoyadi. */
+function toAttributeColumns(
+  attributes: ProductAttributeDto[] | undefined,
+): AttributeColumns[] {
+  return (attributes ?? []).map((attribute) => ({
+    ...spreadLocalizedRequired('key', attribute.key),
+    ...spreadLocalizedRequired('value', attribute.value),
+    unit_uz: attribute.unit ? pickLocalized(attribute.unit, 'uz') : null,
+    unit_ru: attribute.unit ? pickLocalized(attribute.unit, 'ru') : null,
+    unit_en: attribute.unit ? pickLocalized(attribute.unit, 'en') : null,
+  }));
+}
+
+/**
+ * Fasetlarni joriy tilda yig'adi.
+ *
+ * Guruhlash `key_en` / `value_en` bo'yicha ketadi - bu tilga bog'liq bo'lmagan
+ * barqaror identifikator. Yorliq (`key`, `value`) esa so'ralgan tilda beriladi,
+ * shunda til almashganda filtr tanlovi buzilmaydi.
+ */
+function aggregateAttributeFacets(
+  rows: Array<{ attributes: Partial<AttributeColumns>[] }>,
+  lang: Lang,
+) {
+  interface ValueBucket {
+    id: string;
+    label: string;
+    count: number;
+  }
+
+  const byKey = new Map<
+    string,
+    { label: string; unit: string | null; values: Map<string, ValueBucket> }
+  >();
+
+  for (const row of rows) {
+    for (const attribute of row.attributes ?? []) {
+      const keyId = attribute.key_en || attribute.key_ru || attribute.key_uz;
+      const valueId =
+        attribute.value_en || attribute.value_ru || attribute.value_uz;
+      if (!keyId || !valueId) continue;
+
+      const group = byKey.get(keyId) ?? {
+        label:
+          pickLocalized(
+            {
+              uz: attribute.key_uz,
+              ru: attribute.key_ru,
+              en: attribute.key_en,
+            },
+            lang,
+          ) ?? keyId,
+        unit: pickLocalized(
+          {
+            uz: attribute.unit_uz,
+            ru: attribute.unit_ru,
+            en: attribute.unit_en,
+          },
+          lang,
+        ),
+        values: new Map<string, ValueBucket>(),
+      };
+
+      const bucket = group.values.get(valueId) ?? {
+        id: valueId,
+        label:
+          pickLocalized(
+            {
+              uz: attribute.value_uz,
+              ru: attribute.value_ru,
+              en: attribute.value_en,
+            },
+            lang,
+          ) ?? valueId,
+        count: 0,
+      };
+
+      bucket.count += 1;
+      group.values.set(valueId, bucket);
+      byKey.set(keyId, group);
+    }
+  }
+
+  return [...byKey.entries()].map(([keyId, group]) => ({
+    /** Filtrda ishlatiladigan barqaror kalit: `?attributes=<key>:<value>`. */
+    key: keyId,
+    label: group.label,
+    unit: group.unit,
+    values: [...group.values.values()]
+      .map((bucket) => ({
+        value: bucket.id,
+        label: bucket.label,
+        count: bucket.count,
+      }))
+      // Sonli xarakteristikalar (quvvat, napor) son bo'yicha, matnlilar
+      // esa ommaboplik bo'yicha saralanadi
+      .sort((a, b) => {
+        const na = Number(a.value.replace(',', '.'));
+        const nb = Number(b.value.replace(',', '.'));
+        if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+        return b.count - a.count;
+      }),
+  }));
+}
+
 /**
  * SKU ni yagona ko'rinishga keltiradi: chetdagi bo'shliqlar olib tashlanadi va
  * katta harfga o'giriladi. Shu sabab "apl-123" va "APL-123" bitta SKU hisoblanadi.
@@ -881,11 +1016,17 @@ function normalizeSku(sku?: string | null): string | null {
   return trimmed ? trimmed.toUpperCase() : null;
 }
 
+/** Slug uchun manba: mavjud bo'lgan birinchi til. */
+function pickAnyText(value: { uz?: string; ru?: string; en?: string }): string {
+  return value.uz?.trim() || value.ru?.trim() || value.en?.trim() || 'product';
+}
+
 export interface CollectionOptions {
   limit?: number;
   categoryId?: string;
   categorySlug?: string;
   withinDays?: number;
+  lang?: Lang;
   /** `true` bo'lsa faqat admin qo'lda TOP belgilaganlari qaytadi. */
   onlyManual?: boolean;
 }

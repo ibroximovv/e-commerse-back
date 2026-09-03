@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import { ToBoolean } from '../../../common/utils/transform.util';
@@ -11,21 +11,6 @@ export const CATEGORY_SORT_FIELDS = [
 ] as const;
 
 export class CategoriesQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({
-    description: "Ota kategoriya ID'si bo'yicha filtr (bevosita bolalar).",
-  })
-  @IsOptional()
-  @IsString()
-  parent_id?: string;
-
-  @ApiPropertyOptional({
-    description: 'Faqat ildiz (parent_id = null) kategoriyalar.',
-  })
-  @ToBoolean()
-  @IsBoolean()
-  @IsOptional()
-  root_only?: boolean;
-
   @ApiPropertyOptional({
     description: 'Faqat tanlangan (featured) kategoriyalar.',
   })
@@ -57,7 +42,8 @@ export class CategoriesQueryDto extends PaginationQueryDto {
     enum: CATEGORY_SORT_FIELDS,
     default: 'sort_order',
     description:
-      "Bazadagi maydon nomi. Ro'yxatda yo'q qiymat yuborilsa `sort_order` ishlatiladi.",
+      "Ro'yxatda yo'q qiymat yuborilsa `sort_order` ishlatiladi. " +
+      '`name` tanlansa saralash joriy til ustunida bajariladi.',
   })
   @IsOptional()
   @IsIn(CATEGORY_SORT_FIELDS)

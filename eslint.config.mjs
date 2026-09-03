@@ -32,4 +32,17 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    // Testlarda mock obyektlar tabiiy ravishda `any` bo'ladi (Prisma
+    // klientining butun tipini takrorlash testni o'qib bo'lmas qiladi).
+    // Bu qoidalar ishlab chiqarish kodida kuchda qoladi.
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
 );

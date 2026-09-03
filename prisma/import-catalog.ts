@@ -4,8 +4,11 @@
  * Ma'lumot manbasi - `prisma/catalog/categories.json` va `prisma/catalog/products.json`.
  * Skript IDEMPOTENT: bir necha marta ishga tushirsa ham nusxa yaratmaydi.
  *
- *   Kategoriya kaliti - `slug` (topilmasa `name`).
+ *   Kategoriya kaliti - `slug`.
  *   Mahsulot kaliti   - `sku` (topilmasa `slug`).
+ *
+ * Nom, tavsif va xarakteristikalar JSON'da `{uz, ru, en}` ko'rinishida keladi va
+ * bazadagi `name_uz` / `name_ru` / `name_en` ustunlariga yoyiladi.
  *
  * PRODUCTION UCHUN MUHIM
  * ----------------------
@@ -22,7 +25,7 @@
  *   npm run db:import:catalog -- --archive-missing
  *
  * Eslatma: `prisma db push` (yoki `prisma generate`) shu skriptdan OLDIN
- * bajarilgan bo'lishi kerak - `price_on_request` va `attributes.unit` yangi maydonlar.
+ * bajarilgan bo'lishi kerak - til ustunlari yangi maydonlar.
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as fs from 'fs';
@@ -34,34 +37,38 @@ const prisma = new PrismaClient();
 // JSON sxemasi
 // ---------------------------------------------------------------------------
 
+/** JSON'dagi ko'p tilli matn. Kamida bitta til to'ldirilgan bo'lishi kerak. */
+interface LocalizedInput {
+  uz?: string | null;
+  ru?: string | null;
+  en?: string | null;
+}
+
 interface CategoryInput {
-  name: string;
+  name: LocalizedInput;
   slug?: string;
-  description?: string | null;
+  description?: LocalizedInput | null;
   image?: string | null;
   icon?: string | null;
   sort_order?: number;
   is_featured?: boolean;
-  /** Ota kategoriya `name` yoki `slug`i. Ildiz kategoriya uchun null. */
-  parent?: string | null;
-  parent_id?: string | null;
 }
 
 interface AttributeInput {
-  key: string;
-  value: string;
-  unit?: string | null;
+  key: LocalizedInput;
+  value: LocalizedInput;
+  unit?: LocalizedInput | null;
 }
 
 interface ProductInput {
   catalog_no?: number;
-  name: string;
+  name: LocalizedInput;
   slug?: string;
   sku?: string | null;
-  /** Kategoriya `name` yoki `slug`i. */
+  /** Kategoriya `slug`i. */
   category: string;
   brand?: string | null;
-  description?: string | null;
+  description?: LocalizedInput | null;
   tags?: string[];
   price?: number;
   price_on_request?: boolean;
@@ -71,6 +78,11 @@ interface ProductInput {
   attributes?: AttributeInput[];
   is_top?: boolean;
   is_featured?: boolean;
+  // Fiskalizatsiya (Payme cheki). Bo'sh qolsa `.env` dagi PAYME_DEFAULT_* ishlaydi.
+  ikpu_code?: string | null;
+  package_code?: string | null;
+  vat_percent?: number | null;
+  units?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +109,39 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-');
+}
+
+const LANGS = ['uz', 'ru', 'en'] as const;
+type LangCode = (typeof LANGS)[number];
+
+/**
+ * `src/common/i18n/locale.ts` dagi `pickLocalized` bilan bir xil fallback:
+ * so'ralgan til -> uz -> ru -> en.
+ */
+function pick(value: LocalizedInput | null | undefined, lang: LangCode) {
+  if (!value) return null;
+  for (const candidate of [lang, ...LANGS] as LangCode[]) {
+    const text = value[candidate];
+    if (typeof text === 'string' && text.trim() !== '') return text;
+  }
+  return null;
+}
+
+/** `{uz, ru, en}` -> `{<field>_uz, <field>_ru, <field>_en}` (majburiy maydon). */
+function spreadRequired<F extends string>(field: F, value: LocalizedInput) {
+  return Object.fromEntries(
+    LANGS.map((lang) => [`${field}_${lang}`, pick(value, lang) ?? '']),
+  ) as Record<`${F}_${LangCode}`, string>;
+}
+
+/** Xuddi shunday, lekin bo'sh bo'lsa `null` yoziladi. */
+function spreadOptional<F extends string>(
+  field: F,
+  value: LocalizedInput | null | undefined,
+) {
+  return Object.fromEntries(
+    LANGS.map((lang) => [`${field}_${lang}`, pick(value, lang)]),
+  ) as Record<`${F}_${LangCode}`, string | null>;
 }
 
 /** SKU ni ProductsService bilan bir xil normallashtiradi. */
@@ -175,71 +220,43 @@ function readJson<T>(file: string): T {
 // ---------------------------------------------------------------------------
 
 /**
- * Kategoriyalarni ota-bola tartibida yuklaydi va `name|slug -> id` xaritasini qaytaradi.
- * `parent` maydoni orqali istalgan chuqurlikdagi daraxt qo'llab-quvvatlanadi.
+ * Kategoriyalarni yuklaydi va `slug -> id` xaritasini qaytaradi.
+ * Katalog tekis - ichki kategoriya yo'q, shuning uchun bir o'tishda bajariladi.
  */
 async function importCategories(inputs: CategoryInput[]) {
   const registry = new Map<string, string>();
-  const pending = [...inputs];
-  const guard = pending.length + 1;
 
-  for (let pass = 0; pending.length && pass < guard; pass++) {
-    const deferred: CategoryInput[] = [];
+  for (const input of inputs) {
+    const slug = input.slug?.trim() || slugify(pick(input.name, 'ru') ?? '');
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    const label = pick(input.name, 'ru') ?? slug;
 
-    for (const input of pending) {
-      const parentKey = input.parent ?? input.parent_id ?? null;
+    const data = {
+      ...spreadRequired('name', input.name),
+      ...spreadOptional('description', input.description),
+      slug,
+      image: input.image ?? null,
+      icon: input.icon ?? null,
+      sort_order: input.sort_order ?? 0,
+      is_featured: input.is_featured ?? false,
+      is_archived: false,
+    };
 
-      // Ota kategoriya hali yaratilmagan bo'lsa - keyingi bosqichga qoldiramiz
-      if (parentKey && !registry.has(parentKey)) {
-        deferred.push(input);
-        continue;
-      }
-
-      const slug = input.slug?.trim() || slugify(input.name);
-      const parentId = parentKey ? registry.get(parentKey)! : null;
-
-      const existing =
-        (await prisma.category.findUnique({ where: { slug } })) ??
-        (await prisma.category.findUnique({ where: { name: input.name } }));
-
-      const data = {
-        name: input.name,
-        slug,
-        description: input.description ?? null,
-        image: input.image ?? null,
-        icon: input.icon ?? null,
-        sort_order: input.sort_order ?? 0,
-        is_featured: input.is_featured ?? false,
-        parent_id: parentId,
-        is_archived: false,
-      };
-
-      if (OPTIONS.dryRun) {
-        log(`  ${existing ? '~' : '+'} kategoriya: ${input.name} (${slug})`);
-        registry.set(input.name, existing?.id ?? `dry-${slug}`);
-        registry.set(slug, existing?.id ?? `dry-${slug}`);
-        existing ? stats.categoriesUpdated++ : stats.categoriesCreated++;
-        continue;
-      }
-
-      const saved = existing
-        ? await prisma.category.update({ where: { id: existing.id }, data })
-        : await prisma.category.create({ data });
-
+    if (OPTIONS.dryRun) {
+      log(`  ${existing ? '~' : '+'} kategoriya: ${label} (${slug})`);
+      registry.set(slug, existing?.id ?? `dry-${slug}`);
       existing ? stats.categoriesUpdated++ : stats.categoriesCreated++;
-      log(`  ${existing ? '~' : '+'} kategoriya: ${saved.name} (${saved.slug})`);
-
-      registry.set(input.name, saved.id);
-      registry.set(saved.slug, saved.id);
+      continue;
     }
 
-    if (deferred.length === pending.length) {
-      throw new Error(
-        `Ota kategoriya topilmadi: ${deferred.map((c) => c.parent ?? c.parent_id).join(', ')}`,
-      );
-    }
-    pending.length = 0;
-    pending.push(...deferred);
+    const saved = existing
+      ? await prisma.category.update({ where: { id: existing.id }, data })
+      : await prisma.category.create({ data });
+
+    existing ? stats.categoriesUpdated++ : stats.categoriesCreated++;
+    log(`  ${existing ? '~' : '+'} kategoriya: ${label} (${saved.slug})`);
+
+    registry.set(saved.slug, saved.id);
   }
 
   return registry;
@@ -273,10 +290,12 @@ async function importProducts(
   const touchedIds: string[] = [];
 
   for (const input of inputs) {
+    const label = pick(input.name, 'ru') ?? input.sku ?? '(nomsiz)';
+
     const categoryId = categoryIds.get(input.category);
     if (!categoryId) {
       throw new Error(
-        `"${input.name}" uchun kategoriya topilmadi: "${input.category}"`,
+        `"${label}" uchun kategoriya topilmadi: "${input.category}"`,
       );
     }
 
@@ -287,7 +306,7 @@ async function importProducts(
 
     if (discountPrice !== null && discountPrice >= price) {
       throw new Error(
-        `"${input.name}": discount_price (${discountPrice}) price (${price}) dan kichik bo'lishi kerak`,
+        `"${label}": discount_price (${discountPrice}) price (${price}) dan kichik bo'lishi kerak`,
       );
     }
 
@@ -299,21 +318,25 @@ async function importProducts(
           })
         : null) ??
       (await prisma.product.findUnique({
-        where: { slug: input.slug?.trim() || slugify(input.name) },
+        where: { slug: input.slug?.trim() || slugify(label) },
       }));
 
     // Katalogdan keladigan - ya'ni har doim qayta yoziladigan - maydonlar
     const catalogFields = {
-      name: input.name,
+      ...spreadRequired('name', input.name),
+      ...spreadOptional('description', input.description),
       sku,
-      description: input.description ?? null,
       brand: input.brand ?? null,
       tags: input.tags ?? [],
       images: input.images ?? [],
+      ikpu_code: input.ikpu_code ?? null,
+      package_code: input.package_code ?? null,
+      vat_percent: input.vat_percent ?? null,
+      units: input.units ?? null,
       attributes: (input.attributes ?? []).map((attr) => ({
-        key: attr.key,
-        value: attr.value,
-        unit: attr.unit ?? null,
+        ...spreadRequired('key', attr.key),
+        ...spreadRequired('value', attr.value),
+        ...spreadOptional('unit', attr.unit),
       })),
       category_id: categoryId,
     };
@@ -330,7 +353,7 @@ async function importProducts(
     };
 
     if (OPTIONS.dryRun) {
-      log(`  ${existing ? '~' : '+'} ${input.name}  [${sku ?? '-'}]`);
+      log(`  ${existing ? '~' : '+'} ${label}  [${sku ?? '-'}]`);
       existing ? stats.productsUpdated++ : stats.productsCreated++;
       if (existing) touchedIds.push(existing.id);
       continue;
@@ -349,19 +372,19 @@ async function importProducts(
       });
       touchedIds.push(saved.id);
       stats.productsUpdated++;
-      log(`  ~ ${saved.name}  [${saved.sku ?? '-'}]`);
+      log(`  ~ ${saved.name_ru}  [${saved.sku ?? '-'}]`);
     } else {
       const saved = await prisma.product.create({
         data: {
           ...catalogFields,
           ...pricingFields,
           is_archived: false,
-          slug: await resolveSlug(input.slug?.trim() || input.name),
+          slug: await resolveSlug(input.slug?.trim() || label),
         },
       });
       touchedIds.push(saved.id);
       stats.productsCreated++;
-      log(`  + ${saved.name}  [${saved.sku ?? '-'}]`);
+      log(`  + ${saved.name_ru}  [${saved.sku ?? '-'}]`);
     }
   }
 
@@ -413,7 +436,7 @@ async function main() {
     const categoryIds = [
       ...new Set(
         categoriesFile.categories
-          .map((c) => registry.get(c.name))
+          .map((c) => registry.get(c.slug ?? slugify(pick(c.name, 'ru') ?? '')))
           .filter((id): id is string => !!id),
       ),
     ];

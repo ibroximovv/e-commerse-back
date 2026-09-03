@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { translate } from '../i18n/translations';
+import { resolveRequestLanguage } from '../i18n/request-language';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -18,24 +19,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    // Optionally extract user language from JWT if not already authenticated (e.g. public routes)
-    const reqAny = request as any;
-    if (!reqAny.user && request.headers.authorization) {
-      try {
-        const token = request.headers.authorization.split(' ')[1];
-        if (token) {
-          const payloadBase64 = token.split('.')[1];
-          const payloadJson = Buffer.from(payloadBase64, 'base64').toString(
-            'utf-8',
-          );
-          reqAny.user = JSON.parse(payloadJson);
-        }
-      } catch (e) {
-        // Fail silently
-      }
-    }
-
-    const ln = (request.query.ln || reqAny.user?.language || 'uz').toString();
+    const ln = resolveRequestLanguage(request as any);
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: any = 'Internal server error';
@@ -84,6 +68,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error,
       message,
       path: request.url,
+      language: ln,
       timestamp: new Date().toISOString(),
     });
   }

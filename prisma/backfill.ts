@@ -1,10 +1,21 @@
 /**
- * Bir martalik migratsiya: mavjud MongoDB hujjatlariga yangi maydonlarni qo'shadi.
+ * Bir martalik migratsiya: mavjud MongoDB hujjatlarini joriy sxemaga keltiradi.
  *
- * `slug`, `final_price`, `discount_percent`, `popularity_score` kabi maydonlar
- * schema'da majburiy. Eski hujjatlarda ular yo'q, shuning uchun Prisma orqali
- * o'qishning o'zi xato beradi - shu sabab bu skript `$runCommandRaw` (to'g'ridan-to'g'ri
- * MongoDB buyruqlari) bilan ishlaydi.
+ * Ikki ish qiladi:
+ *  1. Yetishmayotgan maydonlarni to'ldiradi (`slug`, `final_price`,
+ *     `discount_percent`, `popularity_score` ...);
+ *  2. BIR TILLI hujjatlarni UCH TILLIga o'giradi: `name` -> `name_uz`/`name_ru`/
+ *     `name_en`, `description` -> `description_*`, `attributes[].key/value/unit`
+ *     -> `key_*`/`value_*`/`unit_*`, hamda olib tashlangan `parent_id` ni yo'q qiladi.
+ *
+ * Matn qaysi tilga tegishli ekani KIRILL harflari bo'yicha taxmin qilinadi:
+ * kirill bo'lsa `*_ru`, aks holda `*_en`. Qolgan tillar bo'sh qoldiriladi -
+ * `pickLocalized` fallback zanjiri ularni to'ldirilgan tildan ko'rsatadi va
+ * admin panelda "hali tarjima qilinmagan" degani ko'rinib turadi.
+ *
+ * Bu maydonlar schema'da majburiy, shuning uchun Prisma orqali o'qishning o'zi
+ * xato beradi - skript `$runCommandRaw` (to'g'ridan-to'g'ri MongoDB buyruqlari)
+ * bilan ishlaydi.
  *
  * Ishlatish (bir marta, `prisma db push` dan keyin):
  *   npx ts-node prisma/backfill.ts
@@ -48,6 +59,37 @@ function uniqueSlug(base: string, taken: Set<string>, fallback: string) {
   return candidate;
 }
 
+/** Matnda kirill harfi bormi - qaysi til ustuniga yozishni shu hal qiladi. */
+function isCyrillic(value: string): boolean {
+  return /[\u0400-\u04FF]/.test(value);
+}
+
+/**
+ * Bir tilli matnni uch tilli ustunlarga yoyadi.
+ * Aniqlangan til to'ldiriladi, qolgani bo'sh - fallback ularni qoplaydi.
+ */
+function localize(field: string, value: unknown): Record<string, string> {
+  const text = typeof value === 'string' ? value.trim() : '';
+  const isRussian = isCyrillic(text);
+
+  return {
+    // O'zbekcha matnni avtomatik ajratib bo'lmaydi (lotin yozuvi ingliz bilan
+    // bir xil), shuning uchun `uz` doim bo'sh qoladi va admin to'ldiradi.
+    [`${field}_uz`]: '',
+    [`${field}_ru`]: isRussian ? text : '',
+    [`${field}_en`]: isRussian ? '' : text,
+  };
+}
+
+/** Hujjat allaqachon ko'p tilli ko'rinishga o'tganmi. */
+function alreadyLocalized(doc: any, field: string): boolean {
+  return (
+    doc[`${field}_uz`] !== undefined ||
+    doc[`${field}_ru`] !== undefined ||
+    doc[`${field}_en`] !== undefined
+  );
+}
+
 async function findAll(collection: string): Promise<any[]> {
   const result: any = await prisma.$runCommandRaw({
     find: collection,
@@ -88,17 +130,34 @@ async function backfillCategories() {
   const updates = docs
     .map((doc) => {
       const set: Record<string, unknown> = {};
+      const unset: Record<string, ''> = {};
 
       if (!doc.slug) {
         set.slug = uniqueSlug(doc.name ?? '', taken, `category-${doc._id}`);
       }
-      if (doc.parent_id === undefined) set.parent_id = null;
       if (doc.icon === undefined) set.icon = null;
       if (doc.is_featured === undefined) set.is_featured = false;
       if (doc.sort_order === undefined) set.sort_order = 0;
 
-      return Object.keys(set).length
-        ? { q: { _id: doc._id }, u: { $set: set } }
+      // Bir tilli -> uch tilli
+      if (!alreadyLocalized(doc, 'name')) {
+        Object.assign(set, localize('name', doc.name));
+      }
+      if (!alreadyLocalized(doc, 'description')) {
+        Object.assign(set, localize('description', doc.description));
+      }
+      if (doc.name !== undefined) unset.name = '';
+      if (doc.description !== undefined) unset.description = '';
+
+      // Kategoriya daraxti olib tashlandi
+      if (doc.parent_id !== undefined) unset.parent_id = '';
+
+      const update: Record<string, unknown> = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+
+      return Object.keys(update).length
+        ? { q: { _id: doc._id }, u: update }
         : null;
     })
     .filter((item): item is { q: any; u: any } => item !== null);
@@ -118,6 +177,7 @@ async function backfillProducts() {
   const updates = docs
     .map((doc) => {
       const set: Record<string, unknown> = {};
+      const unset: Record<string, ''> = {};
 
       if (!doc.slug) {
         set.slug = uniqueSlug(doc.name ?? '', taken, `product-${doc._id}`);
@@ -170,8 +230,36 @@ async function backfillProducts() {
         set.popularity_score = popularityScore;
       }
 
-      return Object.keys(set).length
-        ? { q: { _id: doc._id }, u: { $set: set } }
+      // Bir tilli -> uch tilli
+      if (!alreadyLocalized(doc, 'name')) {
+        Object.assign(set, localize('name', doc.name));
+      }
+      if (!alreadyLocalized(doc, 'description')) {
+        Object.assign(set, localize('description', doc.description));
+      }
+      if (doc.name !== undefined) unset.name = '';
+      if (doc.description !== undefined) unset.description = '';
+
+      // Xarakteristikalar: {key, value, unit} -> {key_*, value_*, unit_*}
+      if (Array.isArray(doc.attributes)) {
+        const needsMigration = doc.attributes.some(
+          (attr: any) => attr && attr.key !== undefined,
+        );
+        if (needsMigration) {
+          set.attributes = doc.attributes.map((attr: any) => ({
+            ...localize('key', attr?.key),
+            ...localize('value', attr?.value),
+            ...localize('unit', attr?.unit),
+          }));
+        }
+      }
+
+      const update: Record<string, unknown> = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+
+      return Object.keys(update).length
+        ? { q: { _id: doc._id }, u: update }
         : null;
     })
     .filter((item): item is { q: any; u: any } => item !== null);

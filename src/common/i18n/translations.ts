@@ -1,23 +1,16 @@
+import { Lang } from './locale';
+
+/**
+ * Faqat TIZIM xabarlari va xatolari uchun lug'at.
+ *
+ * Katalog matnlari (kategoriya/mahsulot nomi, tavsifi, xarakteristikalari) bu
+ * yerda emas - ular bazada `name_uz` / `name_ru` / `name_en` ustunlarida
+ * saqlanadi va `localizeObject` orqali tanlanadi. Ilgari katalog nomlari ham
+ * shu lug'atdan qidirilar edi, shuning uchun bazadagi ruscha matnlar lug'atda
+ * topilmay til almashganda ham o'zgarmay qolar edi.
+ */
 export const translations: Record<string, Record<string, string>> = {
   uz: {
-    // Entities / Words
-    Phone: 'Telefon',
-    Laptop: 'Noutbuk',
-    Electronics: 'Elektronika',
-    Accessories: 'Aksessuarlar',
-    'Smartphones and gadgets': 'Smartfonlar va gadjetlar',
-    'High performance laptops': 'Yuqori unumdorlikka ega noutbuklar',
-    'Super fast phone': 'Juda tezkor telefon',
-    Smartphones: 'Smartfonlar',
-    Laptops: 'Noutbuklar',
-    Tablets: 'Planshetlar',
-    Headphones: 'Quloqchinlar',
-    Chargers: 'Quvvatlagichlar',
-    Cases: 'Chexollar',
-    'Home Appliances': 'Maishiy texnika',
-    Kitchen: 'Oshxona',
-    'Cables, cases, chargers': 'Kabellar, chexollar, quvvatlagichlar',
-
     // Katalog xatolari
     'Category has subcategories. Archive it instead of deleting':
       "Kategoriyada ichki kategoriyalar bor. O'chirish o'rniga arxivlang.",
@@ -87,26 +80,15 @@ export const translations: Record<string, Record<string, string>> = {
     'Order not found': 'Buyurtma topilmadi.',
     'Only PENDING orders can be cancelled by customers':
       'Faqat kutilayotgan (PENDING) buyurtmalar mijoz tomonidan bekor qilinishi mumkin.',
+
+    // To'lov
+    'Order has already been paid': "Buyurtma allaqachon to'langan.",
+    'No payment transaction found for this order':
+      "Bu buyurtma uchun to'lov tranzaksiyasi topilmadi.",
+    'A record with this unique field already exists':
+      'Bunday qiymatli yozuv allaqachon mavjud.',
   },
   ru: {
-    // Entities / Words
-    Phone: 'Телефон',
-    Laptop: 'Ноутбук',
-    Electronics: 'Электроника',
-    Accessories: 'Аксессуары',
-    'Smartphones and gadgets': 'Смартфоны и гаджеты',
-    'High performance laptops': 'Высокопроизводительные ноутбуки',
-    'Super fast phone': 'Супер быстрый телефон',
-    Smartphones: 'Смартфоны',
-    Laptops: 'Ноутбуки',
-    Tablets: 'Планшеты',
-    Headphones: 'Наушники',
-    Chargers: 'Зарядные устройства',
-    Cases: 'Чехлы',
-    'Home Appliances': 'Бытовая техника',
-    Kitchen: 'Кухня',
-    'Cables, cases, chargers': 'Кабели, чехлы, зарядные устройства',
-
     // Ошибки каталога
     'Category has subcategories. Archive it instead of deleting':
       'В категории есть подкатегории. Архивируйте её вместо удаления.',
@@ -173,65 +155,40 @@ export const translations: Record<string, Record<string, string>> = {
     'Order not found': 'Заказ не найден.',
     'Only PENDING orders can be cancelled by customers':
       'Только заказы в статусе PENDING могут быть отменены клиентом.',
+
+    // Оплата
+    'Order has already been paid': 'Заказ уже оплачен.',
+    'No payment transaction found for this order':
+      'Для этого заказа не найдена платёжная транзакция.',
+    'A record with this unique field already exists':
+      'Запись с таким значением уже существует.',
   },
   en: {
     // Default language, keys map 1:1, but included for completeness
   },
 };
 
-export function translate(text: string, lang: string): string {
-  if (!text || !lang || lang === 'en') return text;
-  const lowerLang = lang.toLowerCase();
-  const dict = translations[lowerLang];
+/**
+ * Tizim xabarini tanlangan tilga o'giradi.
+ *
+ * Xabarlar kodda ingliz tilida yozilgani uchun `en` da lug'atga murojaat
+ * qilinmaydi. Lug'atda topilmagan matn (masalan, ichida ID bo'lgan dinamik
+ * xabar) o'zgarmasdan qaytadi.
+ *
+ * Faqat matnning O'ZI kalit bo'lgan xabarlarga ishlaydi - obyekt ichidagi
+ * katalog nomlarini tarjima qilishga urinmaydi. Buning uchun `localizeObject`.
+ */
+export function translate(text: string, lang: Lang | string): string {
+  if (!text || lang === 'en') return text;
+
+  const dict = translations[String(lang).toLowerCase()];
   if (!dict) return text;
 
-  // Try exact match
   if (dict[text]) return dict[text];
 
-  // Try case-insensitive matching
   const matchedKey = Object.keys(dict).find(
     (key) => key.toLowerCase() === text.toLowerCase(),
   );
-  if (matchedKey) return dict[matchedKey];
 
-  return text;
-}
-
-export function translateObject<T>(obj: T, lang: string): T {
-  if (!obj || typeof obj !== 'object' || obj instanceof Date) return obj;
-
-  if (Array.isArray(obj)) {
-    return obj.map((item) => translateObject(item, lang)) as any;
-  }
-
-  const result = { ...obj } as any;
-
-  // Strip password field globally to prevent security leaks
-  if ('password' in result) {
-    delete result.password;
-  }
-
-  for (const key in result) {
-    if (Object.prototype.hasOwnProperty.call(result, key)) {
-      const val = result[key];
-      if (typeof val === 'string' && lang !== 'en') {
-        // Only translate fields likely to have values in dictionary
-        if (
-          [
-            'name',
-            'description',
-            'message',
-            'error',
-            'fullName',
-            'full_name',
-          ].includes(key)
-        ) {
-          result[key] = translate(val, lang);
-        }
-      } else if (typeof val === 'object' && val !== null) {
-        result[key] = translateObject(val, lang);
-      }
-    }
-  }
-  return result;
+  return matchedKey ? dict[matchedKey] : text;
 }

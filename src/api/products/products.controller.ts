@@ -35,6 +35,8 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentLang } from '../../common/i18n/request-language';
+import type { Lang } from '../../common/i18n/locale';
 
 @ApiTags('Products')
 @Controller('api/products')
@@ -53,16 +55,21 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Mahsulotlarni qidirish va filtrlash',
     description:
-      "Kategoriya (ichki kategoriyalari bilan), narx oralig'i, brend, teg, atribut, " +
-      "ombor holati, reyting va chegirma bo'yicha filtr. `?with_facets=true` bilan " +
-      'filtr paneli uchun mavjud qiymatlar ham qaytadi. Arxivlangan mahsulotlarni ' +
-      "faqat ADMIN ko'ra oladi.",
+      "Kategoriya, narx oralig'i, brend, teg, atribut, ombor holati, reyting va " +
+      "chegirma bo'yicha filtr. Qidiruv uchala tilda bir vaqtda ishlaydi. " +
+      '`?with_facets=true` bilan filtr paneli uchun mavjud qiymatlar ham qaytadi. ' +
+      "Arxivlangan mahsulotlarni faqat ADMIN ko'ra oladi.",
   })
   findAll(
     @Query() query: ProductsFilterQueryDto,
+    @CurrentLang() lang: Lang,
     @CurrentUser('role') role?: Role,
   ) {
-    return this.productsService.searchAndFilter(query, role === Role.ADMIN);
+    return this.productsService.searchAndFilter(
+      query,
+      role === Role.ADMIN,
+      lang,
+    );
   }
 
   @Get('filters')
@@ -75,9 +82,14 @@ export class ProductsController {
   })
   getFilterOptions(
     @Query() query: ProductsFilterQueryDto,
+    @CurrentLang() lang: Lang,
     @CurrentUser('role') role?: Role,
   ) {
-    return this.productsService.getFilterOptions(query, role === Role.ADMIN);
+    return this.productsService.getFilterOptions(
+      query,
+      role === Role.ADMIN,
+      lang,
+    );
   }
 
   @Get('top')
@@ -87,63 +99,78 @@ export class ProductsController {
       "Avval admin qo'lda TOP belgilaganlari, keyin sotuv + reyting + ko'rishlardan " +
       "hosil bo'lgan reyting bali bo'yicha saralanadi.",
   })
-  getTop(@Query() query: TopProductsQueryDto) {
+  getTop(@Query() query: TopProductsQueryDto, @CurrentLang() lang?: Lang) {
     return this.productsService.getTopProducts({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
       onlyManual: query.only_manual,
+      lang,
     });
   }
 
   @Get('best-sellers')
   @ApiOperation({ summary: "Eng ko'p sotilgan mahsulotlar" })
-  getBestSellers(@Query() query: CollectionQueryDto) {
+  getBestSellers(
+    @Query() query: CollectionQueryDto,
+    @CurrentLang() lang?: Lang,
+  ) {
     return this.productsService.getBestSellers({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
+      lang,
     });
   }
 
   @Get('featured')
   @ApiOperation({ summary: 'Tanlangan mahsulotlar (bosh sahifa bloki)' })
-  getFeatured(@Query() query: CollectionQueryDto) {
+  getFeatured(@Query() query: CollectionQueryDto, @CurrentLang() lang?: Lang) {
     return this.productsService.getFeaturedProducts({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
+      lang,
     });
   }
 
   @Get('new-arrivals')
   @ApiOperation({ summary: 'Yangi kelgan mahsulotlar' })
-  getNewArrivals(@Query() query: NewArrivalsQueryDto) {
+  getNewArrivals(
+    @Query() query: NewArrivalsQueryDto,
+    @CurrentLang() lang?: Lang,
+  ) {
     return this.productsService.getNewArrivals({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
       withinDays: query.within_days,
+      lang,
     });
   }
 
   @Get('discounted')
   @ApiOperation({ summary: 'Chegirmadagi mahsulotlar (aksiya bloki)' })
-  getDiscounted(@Query() query: CollectionQueryDto) {
+  getDiscounted(
+    @Query() query: CollectionQueryDto,
+    @CurrentLang() lang?: Lang,
+  ) {
     return this.productsService.getDiscountedProducts({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
+      lang,
     });
   }
 
   @Get('top-rated')
   @ApiOperation({ summary: 'Eng yuqori baholangan mahsulotlar' })
-  getTopRated(@Query() query: CollectionQueryDto) {
+  getTopRated(@Query() query: CollectionQueryDto, @CurrentLang() lang?: Lang) {
     return this.productsService.getTopRatedProducts({
       limit: query.limit,
       categoryId: query.category_id,
       categorySlug: query.category_slug,
+      lang,
     });
   }
 
@@ -160,7 +187,8 @@ export class ProductsController {
   @ApiOperation({
     summary: "O'xshash mahsulotlar",
     description:
-      "Avval shu kategoriyadan olinadi, yetmasa qardosh kategoriyalardan to'ldiriladi.",
+      "Shu kategoriyaning boshqa mahsulotlari. Katalog tekis bo'lgani uchun " +
+      "qardosh kategoriya tushunchasi yo'q.",
   })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   getRelated(@Param('id') id: string, @Query('limit') limit?: string) {
@@ -172,7 +200,7 @@ export class ProductsController {
   @ApiOperation({
     summary: "Mahsulotni ID bo'yicha olish",
     description:
-      "Javobga breadcrumbs, ombor holati va `is_new` qo'shiladi. " +
+      "Javobga kategoriya, ombor holati va `is_new` qo'shiladi. " +
       'Mijoz ochganda `view_count` avtomatik oshadi (admin ochganda oshmaydi).',
   })
   findOne(@Param('id') id: string, @CurrentUser('role') role?: Role) {
@@ -190,8 +218,10 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Yangi mahsulot yaratish (Admin)',
     description:
-      'Kategoriya mavjudligi va arxivlanmaganligi tekshiriladi, slug avtomatik ' +
-      'generatsiya qilinadi, chegirma narxi asosiy narxdan kichikligi validatsiya qilinadi.',
+      "Nom, tavsif va har bir xarakteristika `{uz, ru, en}` ko'rinishida " +
+      'yuboriladi. Kategoriya mavjudligi va arxivlanmaganligi tekshiriladi, slug ' +
+      'avtomatik generatsiya qilinadi, chegirma narxi asosiy narxdan kichikligi ' +
+      'validatsiya qilinadi.',
   })
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.createProduct(createProductDto);

@@ -33,11 +33,23 @@ enum Role {
   USER
 }
 
+/// Katalog tekis (bir darajali): OCO katalogida 8 ta bo'lim bor, ichki
+/// kategoriya yo'q. Shuning uchun `parent_id` self-relation saqlanmaydi.
 model Category {
-  id          String   @id @default(uuid()) @map("_id")
-  name        String   @unique
+  id String @id @default(uuid()) @map("_id")
+
+  // Ko'p tillilik alohida ustunlarda saqlanadi: MongoDB nested maydon bo'yicha
+  // indeks/sortni yaxshi ko'tarmaydi, ustun esa oddiy `@@index` bilan ishlaydi.
+  name_uz String
+  name_ru String
+  name_en String
+
+  description_uz String?
+  description_ru String?
+  description_en String?
+
+  // Slug barcha tillar uchun yagona - SEO havolasi til almashganda o'zgarmaydi.
   slug        String   @unique
-  description String?
   image       String?
   icon        String?
   is_archived Boolean  @default(false)
@@ -46,36 +58,49 @@ model Category {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  // Self relation: unlimited nesting (Electronics -> Phones -> Smartphones)
-  parent_id String?
-  parent    Category?  @relation("CategoryTree", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children  Category[] @relation("CategoryTree")
-
   products Product[]
 
   @@index([is_archived])
-  @@index([parent_id])
-  @@index([parent_id, is_archived])
   @@index([is_featured, is_archived])
   @@index([sort_order])
+  @@index([name_uz])
+  @@index([name_ru])
+  @@index([name_en])
 }
 
+/// Xarakteristika. Kalit ham, qiymat ham tarjima qilinadi ("Мощность"/"Quvvat",
+/// "Медный"/"Mis"), sonli qiymatlar esa uchala tilda bir xil yoziladi.
 type ProductAttribute {
-  key   String
-  value String
-  // O'lchov birligi: "W", "m", "m3/h", "mm", "V", "kg", "l", "bar" ...
+  key_uz String
+  key_ru String
+  key_en String
+
+  value_uz String
+  value_ru String
+  value_en String
+
+  // O'lchov birligi: "Вт"/"W", "м"/"m", "м³/ч"/"m3/h" ...
   // Kalitdan ajratilgani uchun fasetlarda "Quvvat" bitta guruh bo'lib qoladi.
-  unit  String?
+  unit_uz String?
+  unit_ru String?
+  unit_en String?
 }
 
 model Product {
-  id          String             @id @default(uuid()) @map("_id")
-  name        String
-  slug        String             @unique
-  sku         String?
-  description String?
-  brand       String?
-  tags        String[]           @default([])
+  id String @id @default(uuid()) @map("_id")
+
+  name_uz String
+  name_ru String
+  name_en String
+
+  description_uz String?
+  description_ru String?
+  description_en String?
+
+  slug  String   @unique
+  sku   String?
+  brand String?
+  tags  String[] @default([])
   price       Float              @default(0)
   // Narx kelishilgan holda beriladi (katalogda narx ko'rsatilmagan tovarlar).
   // true bo'lsa: `price`/`final_price` 0 bo'ladi va mahsulot savatga/buyurtmaga tushmaydi.
@@ -102,6 +127,19 @@ model Product {
   // "TOP mahsulotlar" ni bazada indeks bo'yicha saralash uchun saqlanadi.
   popularity_score Float         @default(0)
   attributes  ProductAttribute[]
+
+  // --- Fiskalizatsiya (O'zbekiston OFD) ------------------------------------
+  // Payme `CheckPerformTransaction` javobida chek qatorlarini shu maydonlardan
+  // quradi. Bo'sh qolsa PAYME_DEFAULT_* qiymatlari ishlatiladi.
+  /// MXIK / IKPU - soliq organidagi tovar klassifikatori kodi (17 xonali).
+  ikpu_code    String?
+  /// Qadoqlash kodi (soliq.uz dagi tovar birligi kodi).
+  package_code String?
+  /// QQS stavkasi foizda: 0 yoki 12.
+  vat_percent  Int?
+  /// O'lchov birligi klassifikatori kodi (masalan, dona uchun 241092).
+  units        Int?
+
   created_at  DateTime           @default(now())
   updated_at  DateTime           @updatedAt
 
@@ -112,7 +150,9 @@ model Product {
   cart_items  CartItem[]
   reviews     ProductReview[]
 
-  @@index([name])
+  @@index([name_uz])
+  @@index([name_ru])
+  @@index([name_en])
   @@index([price])
   @@index([final_price])
   @@index([sku])
@@ -226,18 +266,48 @@ enum PaymentStatus {
   REFUNDED
 }
 
+/// Payme tranzaksiya holati (Merchant API `state`).
+/// Payme raqamlarini o'zgartirib bo'lmaydi - protokolda qat'iy belgilangan.
+enum PaymeState {
+  /// 1 - yaratilgan, to'lov hali amalga oshmagan
+  CREATED
+  /// 2 - to'lov muvaffaqiyatli o'tkazilgan
+  PERFORMED
+  /// -1 - to'lov amalga oshmasdan bekor qilingan
+  CANCELLED
+  /// -2 - to'lovdan keyin bekor qilingan (qaytarish)
+  CANCELLED_AFTER_PERFORM
+}
+
 model Payment {
-  id             String        @id @default(uuid()) @map("_id")
-  order_id       String        @unique
-  order          Order         @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  amount         Float
-  provider       String // Click, Payme, Stripe, etc.
-  status         PaymentStatus @default(PENDING)
-  transaction_id String?       @unique // Vendor transaction identifier
-  error_message  String?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
+  id       String @id @default(uuid()) @map("_id")
+  order_id String @unique
+  order    Order  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  /// So'mda. Payme bilan almashinuvda tiyinga (x100) o'giriladi.
+  amount        Float
+  provider      String // payme, click, cash ...
+  status        PaymentStatus @default(PENDING)
+  error_message String?
+
+  // --- Payme Merchant API maydonlari ---------------------------------------
+  /// Payme tomonidagi tranzaksiya identifikatori (`params.id`).
+  /// Unikal - shu sabab bir tranzaksiya ikki marta yozilmaydi (idempotentlik).
+  payme_transaction_id String? @unique
+  payme_state          PaymeState?
+  /// Payme yuborgan `params.time` (epoch ms). Double 2^53 gacha aniq -
+  /// epoch ms uchun yetarli, BigInt esa JSON.stringify'da xato beradi.
+  payme_time           Float?
+  payme_create_time    Float?
+  payme_perform_time   Float?
+  payme_cancel_time    Float?
+  /// Bekor qilish sababi (Payme `reason` kodi).
+  payme_reason         Int?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@index([status])
   @@index([provider])
+  @@index([payme_state])
 }

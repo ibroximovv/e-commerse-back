@@ -25,6 +25,8 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentLang } from '../../common/i18n/request-language';
+import type { Lang } from '../../common/i18n/locale';
 
 @ApiTags('Categories')
 @Controller('api/categories')
@@ -40,43 +42,40 @@ export class CategoriesController {
   @ApiOperation({
     summary: "Kategoriyalar ro'yxati (sahifalangan)",
     description:
-      "`root_only`, `parent_id`, `is_featured`, `search` bo'yicha filtr. " +
-      "`with_product_count=true` bilan har biriga mahsulotlar soni qo'shiladi. " +
-      "Arxivlanganlarni faqat ADMIN `include_archived=true` bilan ko'ra oladi.",
+      "`is_featured` va `search` bo'yicha filtr. `with_product_count=true` " +
+      "bilan har biriga mahsulotlar soni qo'shiladi. Arxivlanganlarni faqat " +
+      "ADMIN `include_archived=true` bilan ko'ra oladi. Qidiruv uchala tilda " +
+      'bir vaqtda ishlaydi.',
   })
   findAll(
     @Query() query: CategoriesQueryDto,
+    @CurrentLang() lang: Lang,
     @CurrentUser('role') role?: Role,
   ) {
-    return this.categoriesService.search(query, role === Role.ADMIN);
+    return this.categoriesService.search(query, role === Role.ADMIN, lang);
   }
 
-  @Get('tree')
+  @Get('all')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
-    summary: 'Kategoriyalar daraxti (menyu uchun)',
+    summary: "Menyu uchun to'liq ro'yxat (sahifalashsiz)",
     description:
-      "Butun ierarxiyani bitta so'rovda qaytaradi. `with_product_count=true` bo'lsa " +
-      "ota kategoriya soni ichki kategoriyalarnikini ham o'z ichiga oladi.",
+      "Katalog tekis - 8 ta bo'lim. `sort_order` bo'yicha tartiblangan holda " +
+      'hammasi bitta javobda qaytadi.',
   })
   @ApiQuery({ name: 'with_product_count', required: false, type: Boolean })
   @ApiQuery({ name: 'include_archived', required: false, type: Boolean })
-  @ApiQuery({
-    name: 'root_id',
-    required: false,
-    description: 'Berilsa - faqat shu kategoriyaning quyi daraxti qaytadi.',
-  })
-  getTree(
+  listAll(
+    @CurrentLang() lang: Lang,
     @Query('with_product_count') withProductCount?: string,
     @Query('include_archived') includeArchived?: string,
-    @Query('root_id') rootId?: string,
     @CurrentUser('role') role?: Role,
   ) {
-    return this.categoriesService.getTree({
+    return this.categoriesService.listAll({
       isAdmin: role === Role.ADMIN,
       includeArchived: parseFlag(includeArchived),
       withProductCount: parseFlag(withProductCount),
-      rootId,
+      lang,
     });
   }
 
@@ -89,21 +88,13 @@ export class CategoriesController {
     return this.categoriesService.findBySlug(slug, role === Role.ADMIN);
   }
 
-  @Get(':id/breadcrumbs')
-  @ApiOperation({
-    summary: 'Kategoriya zanjiri (Elektronika / Telefonlar / ...)',
-  })
-  getBreadcrumbs(@Param('id') id: string) {
-    return this.categoriesService.getBreadcrumbs(id);
-  }
-
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary: "Kategoriyani ID bo'yicha olish",
     description:
-      "Javobga ichki kategoriyalar, breadcrumbs va mahsulotlar soni qo'shiladi. " +
-      'Mahsulotlarni olish uchun: `GET /api/products?category_id=<id>`.',
+      "Javobga mahsulotlar soni qo'shiladi. Mahsulotlarni olish uchun: " +
+      '`GET /api/products?category_id=<id>`.',
   })
   findOne(@Param('id') id: string, @CurrentUser('role') role?: Role) {
     return this.categoriesService.findOneDetailed(id, role === Role.ADMIN);
@@ -120,7 +111,8 @@ export class CategoriesController {
   @ApiOperation({
     summary: 'Yangi kategoriya yaratish (Admin)',
     description:
-      "`parent_id` berilsa ichki kategoriya bo'ladi. Slug avtomatik generatsiya qilinadi.",
+      "Nom `{uz, ru, en}` ko'rinishida yuboriladi - kamida bitta til shart, " +
+      "qolganlari mavjud tildan to'ldiriladi. Slug avtomatik generatsiya qilinadi.",
   })
   create(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoriesService.createCategory(createCategoryDto);
@@ -133,8 +125,8 @@ export class CategoriesController {
   @ApiOperation({
     summary: 'Kategoriyani yangilash (Admin)',
     description:
-      "Kategoriyani o'z ichki kategoriyasi ostiga ko'chirish bloklanadi (sikl). " +
-      "`is_archived` o'zgartirilsa - butun quyi daraxt va undagi mahsulotlar ham o'zgaradi.",
+      "Yuborilmagan tillar o'zgarishsiz qoladi. `is_archived` o'zgartirilsa - " +
+      'kategoriyadagi mahsulotlar ham arxivlanadi yoki tiklanadi.',
   })
   update(
     @Param('id') id: string,
@@ -149,8 +141,7 @@ export class CategoriesController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Kategoriyani o'chirish (Admin)",
-    description:
-      "Ichki kategoriyasi yoki mahsuloti bor kategoriya o'chirilmaydi - arxivlash kerak.",
+    description: "Mahsuloti bor kategoriya o'chirilmaydi - arxivlash kerak.",
   })
   remove(@Param('id') id: string) {
     return this.categoriesService.removeCategory(id);

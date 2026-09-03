@@ -6,71 +6,57 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PaymentsQueryDto } from './dto/payments-query.dto';
-import * as crypto from 'crypto';
+import { PaymeService } from './payme/payme.service';
+import { Lang } from '../../common/i18n/locale';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymeService: PaymeService,
+  ) {}
 
-  async payOrder(userId: string, orderId: string, provider: string) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Find the order
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        include: { payment: true },
-      });
-
-      if (!order || order.user_id !== userId) {
-        throw new NotFoundException('Order not found');
-      }
-
-      if (order.status !== OrderStatus.PENDING) {
-        throw new BadRequestException(
-          `Order cannot be paid because status is "${order.status}"`,
-        );
-      }
-
-      if (order.payment && order.payment.status === PaymentStatus.SUCCESSFUL) {
-        throw new BadRequestException('Order has already been paid');
-      }
-
-      const transactionId = `txn_${crypto.randomBytes(8).toString('hex')}`;
-
-      // 2. Create or Update Payment transaction
-      let payment;
-      if (order.payment) {
-        payment = await tx.payment.update({
-          where: { id: order.payment.id },
-          data: {
-            provider,
-            status: PaymentStatus.SUCCESSFUL,
-            transaction_id: transactionId,
-            amount: order.total_amount,
-          },
-        });
-      } else {
-        payment = await tx.payment.create({
-          data: {
-            order_id: orderId,
-            amount: order.total_amount,
-            provider,
-            status: PaymentStatus.SUCCESSFUL,
-            transaction_id: transactionId,
-          },
-        });
-      }
-
-      // 3. Update the Order status to CONFIRMED on successful payment
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: OrderStatus.CONFIRMED },
-      });
-
-      return {
-        message: 'Payment processed successfully',
-        payment,
-      };
+  /**
+   * Buyurtma uchun Payme kassasiga havola qaytaradi.
+   *
+   * To'lovni bu yerda YAKUNLAMAYDI: mijoz havolaga o'tib karta ma'lumotlarini
+   * kiritgach, Payme serveri `POST /api/payments/payme` ga murojaat qiladi va
+   * buyurtma o'sha yerda `CONFIRMED` bo'ladi. Ilgari bu metod to'lovni
+   * darhol `SUCCESSFUL` qilib qo'yardi - ya'ni hech qanday pul o'tmasdan
+   * buyurtma to'langan hisoblanardi.
+   */
+  async createCheckout(userId: string, orderId: string, lang: Lang = 'uz') {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { payment: true },
     });
+
+    if (!order || order.user_id !== userId) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        `Order cannot be paid because status is "${order.status}"`,
+      );
+    }
+
+    if (order.payment?.status === PaymentStatus.SUCCESSFUL) {
+      throw new BadRequestException('Order has already been paid');
+    }
+
+    // Tekis obyekt qaytaramiz: `ResponseInterceptor` `{message, data}` shaklini
+    // sahifalangan javobdan ajrata olmaydi va uni ikki qavat o'rab yuborardi.
+    return {
+      order_id: order.id,
+      provider: 'payme',
+      amount: order.total_amount,
+      checkout_url: this.paymeService.buildCheckoutUrl(
+        order.id,
+        order.total_amount,
+        lang,
+      ),
+    };
   }
 
   async getPaymentStatus(
@@ -118,7 +104,7 @@ export class PaymentsService {
     if (query.search) {
       const term = query.search.trim();
       where.OR = [
-        { transaction_id: { contains: term, mode: 'insensitive' } },
+        { payme_transaction_id: { contains: term, mode: 'insensitive' } },
         { order_id: { contains: term, mode: 'insensitive' } },
         { provider: { contains: term, mode: 'insensitive' } },
       ];

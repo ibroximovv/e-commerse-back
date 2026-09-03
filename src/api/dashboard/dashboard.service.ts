@@ -58,7 +58,14 @@ export class DashboardService {
           items: {
             include: {
               product: {
-                select: { id: true, name: true, images: true, slug: true },
+                select: {
+                  id: true,
+                  name_uz: true,
+                  name_ru: true,
+                  name_en: true,
+                  images: true,
+                  slug: true,
+                },
               },
             },
           },
@@ -71,7 +78,9 @@ export class DashboardService {
         orderBy: [{ sales_count: 'desc' }, { popularity_score: 'desc' }],
         select: {
           id: true,
-          name: true,
+          name_uz: true,
+          name_ru: true,
+          name_en: true,
           slug: true,
           price: true,
           final_price: true,

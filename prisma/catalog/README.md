@@ -5,9 +5,31 @@ Kategoriya nomlari PDF ning **2-sahifasidagi «Оглавление»** dan olin
 
 | Fayl | Nima |
 |---|---|
-| `categories.json` | 8 ta ildiz kategoriya (2-sahifa tartibida) |
+| `categories.json` | 8 ta kategoriya (2-sahifa tartibida) — katalog **tekis**, ichki kategoriya yo'q |
 | `products.json` | 54 ta mahsulot (3–19-sahifalar), `catalog_no` — katalogdagi raqami |
 | `generate-from-pdf.py` | JSON larni qayta hosil qiluvchi skript (PDF matnidan transkripsiya) |
+
+## Uch tillilik
+
+Har bir matn maydoni `{uz, ru, en}` obyekti sifatida yoziladi va import paytida
+bazadagi `name_uz` / `name_ru` / `name_en` ustunlariga yoyiladi:
+
+```json
+{
+  "name": { "uz": "Avtomatik suv nasosi 1WZB-250 (alyuminiy)",
+            "ru": "Автоматический водяной насос 1WZB-250 (алюминий)",
+            "en": "Automatic water pump 1WZB-250 (aluminium)" },
+  "attributes": [
+    { "key":   { "uz": "Quvvat", "ru": "Мощность", "en": "Power" },
+      "value": { "uz": "250", "ru": "250", "en": "250" },
+      "unit":  { "uz": "Vt", "ru": "Вт", "en": "W" } }
+  ]
+}
+```
+
+Asl manba rus tilida, o'zbekcha va inglizcha variantlar `generate-from-pdf.py`
+dagi lug'atlardan hosil qilinadi. Sonli qiymatlar uchala tilda bir xil, faqat
+matnli qiymatlar (`Медный` / `Mis` / `Copper`) tarjima qilinadi.
 
 ## Yuklash
 
@@ -63,19 +85,31 @@ admin paneldan biriktiring.
 Quyidagilar PDF da **qanday bo'lsa shundayligicha** ko'chirilgan — o'zboshimchalik
 bilan "tuzatilmagan". Sotuvchi bilan aniqlashtirish kerak:
 
-| № | Model | Muammo |
-|---|---|---|
-| 17 | QDX 15-17-0.55F | 550 Вт uchun 15 м³/ч juda katta (nomiga ko'ra 1.5 bo'lishi mumkin) |
-| 19 | QDX 40-6-1.1 | Nomida `40-6`, jadvalda esa напор 12 м va 45 м³/ч |
-| 29 | CPM 158 | «Мощность,W **0,75**» — aslida 0.75 кВт = 750 Вт. JSON da `750 Вт` qilib yozildi |
-| 35 | EPC-1 | Quvvat qatorida faqat «1,1» — birligi ko'rsatilmagan, `кВт` deb olindi |
-| 44 | Tank 19V | «Ёмкость **8 л**» — model nomiga ko'ra 19 л bo'lishi kerak |
-| 48 | Tank 50 V | «Ёмкость **36 л**» — model nomiga ko'ra 50 л bo'lishi kerak |
-| 52 | YL90-L-2 | «Мощность,Kw 3» ikki marta takrorlangan |
-| 36–39 | RS seriyasi | «Пропускная способность, м3/**мин**» — м³/**ч** bo'lishi ehtimoli yuqori; JSON da `м³/ч` |
-| ko'p joyda | — | «Частота **ГГц** 50» → aslida **Гц**; «Напряжение сети 220 **Вт**» → **В**. JSON da to'g'rilangan |
-| 21, 51, 52 | QDX 150-11-5.5, YL90L-4, YL90-L-2 | «Бренд OCO» qatori yo'q; baribir OCO deb yozildi |
+| № | Model | Katalogdagi holat | JSON da nima yozilgan |
+|---|---|---|---|
+| 17 | QDX 15-17-0.55F | 550 Вт uchun «15 м³/ч» juda katta (nomiga ko'ra 1.5 bo'lishi mumkin) | **15** — o'zgartirilmadi |
+| 19 | QDX 40-6-1.1 | Nomida `40-6`, jadvalda напор 12 м va 45 м³/ч | **jadvaldagi** qiymatlar |
+| 29 | CPM 158 | «Мощность,**W** 0,75» | **750 Вт** (0.75 кВт deb o'qildi) |
+| 35 | EPC-1 | Birinchi qatorning nomi yo'q, faqat «1,1» | **Мощность 1,1 кВт** deb olindi |
+| 36–39 | RS seriyasi | «Пропускная способность, м3/**мин**» | **м³/ч** — 46–97 Вт nasos uchun м³/мин fizik jihatdan imkonsiz |
+| 44 | Tank 19V | «Ёмкость **8 л**» — nomiga ko'ra 19 л bo'lishi kerak | **8 л** — o'zgartirilmadi |
+| 48 | Tank 50 V | «Ёмкость **36 л**» — nomiga ko'ra 50 л bo'lishi kerak | **36 л** — o'zgartirilmadi |
+| 52 | YL90-L-2 | «Мощность,Kw 3» ikki marta takrorlangan | bir marta yozildi |
+| ko'p joyda | — | «Частота **ГГц** 50», «Напряжение сети 220 **Вт**» | **Гц** va **В** — aniq terish xatosi |
+| 21, 51, 52 | QDX 150-11-5.5, YL90L-4, YL90-L-2 | «Бренд» qatori yo'q | `brand: "OCO"` (butun katalog OCO) |
 
-Bundan tashqari 40 va 41-o'rindagi **LPS 15-9 Z** bir xil nom bilan ikki marta
-keladi (farqi — 41-si latun). JSON da ular `LPS-15-9Z` va `LPS-15-9Z-BR` sifatida
-ajratilgan.
+**Qoida:** o'lchov birligidagi aniq terish xatolari (ГГц, Вт) to'g'rilangan, lekin
+**sonli qiymatlar hech qachon o'zgartirilmagan** — ular bilan sotuvchi aniqlik
+kiritishi kerak.
+
+### Bir model — ikki material
+
+Katalogda bir nechta model ikki xil materialda takrorlanadi. SKU bazada unikal
+bo'lishi shart, shuning uchun ularga material kodi qo'shilgan:
+
+| № | Model | SKU |
+|---|---|---|
+| 24 / 25 | QB-60 (alyuminiy / mis) | `QB-60-AL` / `QB-60-CU` |
+| 30 / 32 | JET 750 (alyuminiy / mis) | `JET-750-AL` / `JET-750-CU` |
+| 31 / 33 | JET 1100 (alyuminiy / mis) | `JET-1100-AL` / `JET-1100-CU` |
+| 40 / 41 | LPS 15-9 Z (—/ latun) | `LPS-15-9-Z` / `LPS-15-9-Z-BR` |

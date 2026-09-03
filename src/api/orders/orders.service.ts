@@ -61,19 +61,19 @@ export class OrdersService {
         const product = item.product;
         if (product.is_archived) {
           throw new BadRequestException(
-            `Product "${product.name}" is archived and cannot be ordered`,
+            `Product "${product.name_uz}" is archived and cannot be ordered`,
           );
         }
 
         if (product.price_on_request) {
           throw new BadRequestException(
-            `Price for "${product.name}" is available on request and it cannot be ordered online`,
+            `Price for "${product.name_uz}" is available on request and it cannot be ordered online`,
           );
         }
 
         if (product.stock < item.quantity) {
           throw new BadRequestException(
-            `Insufficient stock for product "${product.name}"`,
+            `Insufficient stock for product "${product.name_uz}"`,
           );
         }
 

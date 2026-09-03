@@ -8,7 +8,7 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
   @ApiPropertyOptional({
     example: false,
     description:
-      'Arxivlanganda barcha ichki kategoriyalar va ularning mahsulotlari ham arxivlanadi.',
+      'Arxivlanganda kategoriyadagi barcha mahsulotlar ham arxivlanadi (va tiklanganda qaytariladi).',
   })
   @ToBoolean()
   @IsBoolean()

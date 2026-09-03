@@ -8,6 +8,13 @@ import { BaseService } from '../../common/services/base.service';
 import { PrismaService } from '../../database/prisma.service';
 import { Category, Prisma } from '@prisma/client';
 import { generateUniqueSlug, slugify } from '../../common/utils/slug.util';
+import {
+  DEFAULT_LANGUAGE,
+  Lang,
+  SUPPORTED_LANGUAGES,
+  spreadLocalized,
+  spreadLocalizedRequired,
+} from '../../common/i18n/locale';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import {
@@ -15,72 +22,19 @@ import {
   CategoriesQueryDto,
 } from './dto/categories-query.dto';
 
-export interface CategoryTreeNode extends Category {
-  children: CategoryTreeNode[];
-  product_count?: number;
-}
-
 /**
- * Kategoriya skeleti (id -> parent_id) juda tez-tez o'qiladi: mahsulot filtrida
- * har bir kategoriya uchun avlodlar ro'yxati kerak bo'ladi. Kategoriyalar kam
- * o'zgargani uchun qisqa muddatli kesh saqlaymiz va har qanday yozuvda tozalaymiz.
+ * Katalog tekis: OCO katalogida 8 ta bo'lim bor va ichki kategoriya yo'q.
+ * Shuning uchun daraxt (parent/children, breadcrumbs, avlodlar keshi) bu
+ * servisda umuman yo'q - kategoriya oddiy ro'yxat.
  */
-const SKELETON_TTL_MS = 30_000;
-
-interface CategorySkeletonNode {
-  id: string;
-  parent_id: string | null;
-  name: string;
-  slug: string;
-}
-
 @Injectable()
 export class CategoriesService extends BaseService<
   Category,
   Prisma.CategoryCreateInput,
   Prisma.CategoryUpdateInput
 > {
-  private skeletonCache: {
-    expiresAt: number;
-    childrenOf: Map<string, string[]>;
-    byId: Map<string, CategorySkeletonNode>;
-  } | null = null;
-
   constructor(prisma: PrismaService) {
     super(prisma, 'Category');
-  }
-
-  private invalidateSkeleton() {
-    this.skeletonCache = null;
-  }
-
-  private async getSkeleton() {
-    if (this.skeletonCache && this.skeletonCache.expiresAt > Date.now()) {
-      return this.skeletonCache;
-    }
-
-    const rows = await this.prisma.category.findMany({
-      select: { id: true, parent_id: true, name: true, slug: true },
-    });
-
-    const childrenOf = new Map<string, string[]>();
-    const byId = new Map<string, CategorySkeletonNode>();
-
-    for (const row of rows) {
-      byId.set(row.id, row);
-      if (!row.parent_id) continue;
-      const bucket = childrenOf.get(row.parent_id) ?? [];
-      bucket.push(row.id);
-      childrenOf.set(row.parent_id, bucket);
-    }
-
-    this.skeletonCache = {
-      childrenOf,
-      byId,
-      expiresAt: Date.now() + SKELETON_TTL_MS,
-    };
-
-    return this.skeletonCache;
   }
 
   // ---------------------------------------------------------------------------
@@ -88,54 +42,57 @@ export class CategoriesService extends BaseService<
   // ---------------------------------------------------------------------------
 
   async createCategory(dto: CreateCategoryDto): Promise<Category> {
-    const { parent_id, slug, name, ...rest } = dto;
+    const { name, description, slug, ...rest } = dto;
 
-    await this.assertNameIsFree(name);
+    const names = spreadLocalizedRequired('name', name);
+    await this.assertNameIsFree(names);
 
-    if (parent_id) {
-      await this.assertParentExists(parent_id);
-    }
-
-    const created = await this.prisma.category.create({
+    return this.prisma.category.create({
       data: {
         ...rest,
-        name,
-        parent_id: parent_id ?? null,
-        slug: await this.resolveSlug(slug ?? name),
+        ...names,
+        ...spreadLocalized('description', description),
+        slug: await this.resolveSlug(slug ?? pickAnyName(name)),
       },
     });
-
-    this.invalidateSkeleton();
-    return created;
   }
 
   async updateCategory(id: string, dto: UpdateCategoryDto): Promise<Category> {
     const current = await this.findOne(id);
-    const { parent_id, slug, name, is_archived, ...rest } = dto;
+    const { name, description, slug, is_archived, ...rest } = dto;
 
-    if (name && name !== current.name) {
-      await this.assertNameIsFree(name, id);
+    const data: Prisma.CategoryUncheckedUpdateInput = {
+      ...rest,
+      ...spreadLocalized('description', description),
+    };
+
+    if (name) {
+      // Yuborilmagan tillar joriy qiymatida qoladi
+      const merged = spreadLocalizedRequired('name', {
+        uz: name.uz ?? current.name_uz,
+        ru: name.ru ?? current.name_ru,
+        en: name.en ?? current.name_en,
+      });
+      await this.assertNameIsFree(merged, id);
+      Object.assign(data, merged);
     }
 
-    if (parent_id !== undefined && parent_id !== current.parent_id) {
-      await this.assertValidParentMove(id, parent_id);
-    }
-
-    const data: Prisma.CategoryUncheckedUpdateInput = { ...rest };
-
-    if (name !== undefined) data.name = name;
-    if (parent_id !== undefined) data.parent_id = parent_id || null;
     if (is_archived !== undefined) data.is_archived = is_archived;
+
     if (slug !== undefined) {
-      data.slug = await this.resolveSlug(slug || name || current.name, id);
+      const source =
+        slug || (name ? pickAnyName(name) : undefined) || current.name_uz;
+      data.slug = await this.resolveSlug(source, id);
     }
 
     const updated = await this.prisma.category.update({ where: { id }, data });
-    this.invalidateSkeleton();
 
-    // Arxivlash/tiklash pastga kaskad bo'ladi: ichki kategoriyalar + mahsulotlar
+    // Arxivlash/tiklash kategoriyadagi mahsulotlarga ham tarqaladi
     if (is_archived !== undefined && is_archived !== current.is_archived) {
-      await this.cascadeArchive(id, is_archived);
+      await this.prisma.product.updateMany({
+        where: { category_id: id },
+        data: { is_archived },
+      });
     }
 
     return updated;
@@ -143,21 +100,14 @@ export class CategoriesService extends BaseService<
 
   /**
    * Kategoriyani o'chirish faqat u bo'sh bo'lganda ruxsat etiladi.
-   * Aks holda ma'lumotlar yaxlitligi buziladi - o'rniga arxivlash tavsiya qilinadi.
+   * Aks holda mahsulotlar egasiz qoladi - o'rniga arxivlash tavsiya qilinadi.
    */
   async removeCategory(id: string): Promise<Category> {
     await this.findOne(id);
 
-    const [childCount, productCount] = await Promise.all([
-      this.prisma.category.count({ where: { parent_id: id } }),
-      this.prisma.product.count({ where: { category_id: id } }),
-    ]);
-
-    if (childCount > 0) {
-      throw new BadRequestException(
-        'Category has subcategories. Archive it instead of deleting',
-      );
-    }
+    const productCount = await this.prisma.product.count({
+      where: { category_id: id },
+    });
 
     if (productCount > 0) {
       throw new BadRequestException(
@@ -165,38 +115,27 @@ export class CategoriesService extends BaseService<
       );
     }
 
-    const deleted = await this.prisma.category.delete({ where: { id } });
-    this.invalidateSkeleton();
-    return deleted;
+    return this.prisma.category.delete({ where: { id } });
   }
 
   // ---------------------------------------------------------------------------
   // O'qish
   // ---------------------------------------------------------------------------
 
-  async search(query: CategoriesQueryDto, isAdmin = false) {
-    const page = Number(query.page ?? 1);
-    const limit = Number(query.limit ?? 10);
+  async search(
+    query: CategoriesQueryDto,
+    isAdmin = false,
+    lang: Lang = DEFAULT_LANGUAGE,
+  ) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 100);
     const skip = (page - 1) * limit;
 
     const where = this.buildWhere(query, isAdmin);
-
-    // Faqat oq ro'yxatdagi maydonlar - foydalanuvchi ixtiyoriy baza maydonini yubora olmaydi
-    const sortBy = (CATEGORY_SORT_FIELDS as readonly string[]).includes(
-      query.sortBy ?? '',
-    )
-      ? (query.sortBy as string)
-      : 'sort_order';
-    const sortOrder = query.sortOrder ?? 'asc';
+    const orderBy = buildCategoryOrderBy(query, lang);
 
     const [data, total] = await Promise.all([
-      this.prisma.category.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [{ [sortBy]: sortOrder }, { name: 'asc' }],
-        include: { parent: true },
-      }),
+      this.prisma.category.findMany({ where, skip, take: limit, orderBy }),
       this.prisma.category.count({ where }),
     ]);
 
@@ -216,85 +155,32 @@ export class CategoriesService extends BaseService<
   }
 
   /**
-   * Butun kategoriya daraxtini bitta so'rovda yig'ib, xotirada quradi
-   * (har bir daraja uchun alohida DB so'rov yubormaydi).
+   * Menyu uchun to'liq ro'yxat (sahifalashsiz). Ilgari `getTree` bo'lgan -
+   * katalog tekis bo'lgani uchun endi oddiy tartiblangan ro'yxat qaytadi.
    */
-  async getTree(
+  async listAll(
     options: {
       isAdmin?: boolean;
       includeArchived?: boolean;
       withProductCount?: boolean;
-      rootId?: string;
+      lang?: Lang;
     } = {},
-  ): Promise<CategoryTreeNode[]> {
+  ) {
     const includeArchived = !!options.isAdmin && !!options.includeArchived;
+    const lang = options.lang ?? DEFAULT_LANGUAGE;
 
     const categories = await this.prisma.category.findMany({
       where: includeArchived ? {} : { is_archived: false },
-      orderBy: [{ sort_order: 'asc' }, { name: 'asc' }],
+      orderBy: [{ sort_order: 'asc' }, { [`name_${lang}`]: 'asc' }],
     });
 
-    const counts = options.withProductCount
-      ? await this.getProductCountMap(includeArchived)
-      : null;
+    if (!options.withProductCount) return categories;
 
-    const nodes = new Map<string, CategoryTreeNode>();
-    for (const category of categories) {
-      nodes.set(category.id, {
-        ...category,
-        children: [],
-        ...(counts ? { product_count: counts.get(category.id) ?? 0 } : {}),
-      });
-    }
-
-    const roots: CategoryTreeNode[] = [];
-    for (const node of nodes.values()) {
-      const parent = node.parent_id ? nodes.get(node.parent_id) : undefined;
-      if (parent) {
-        parent.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    // product_count ni pastdan yuqoriga yig'amiz: ota kategoriya
-    // o'z bolalaridagi mahsulotlarni ham hisobga oladi
-    if (counts) {
-      const rollUp = (node: CategoryTreeNode): number => {
-        const childTotal = node.children.reduce(
-          (sum, child) => sum + rollUp(child),
-          0,
-        );
-        node.product_count = (node.product_count ?? 0) + childTotal;
-        return node.product_count;
-      };
-      roots.forEach(rollUp);
-    }
-
-    if (options.rootId) {
-      const subtree = nodes.get(options.rootId);
-      if (!subtree) {
-        throw new NotFoundException(
-          `Category with ID ${options.rootId} not found`,
-        );
-      }
-      return [subtree];
-    }
-
-    return roots;
+    return this.attachProductCounts(categories, includeArchived);
   }
 
   async findBySlug(slug: string, isAdmin = false): Promise<Category> {
-    const category = await this.prisma.category.findUnique({
-      where: { slug },
-      include: {
-        parent: true,
-        children: {
-          where: isAdmin ? {} : { is_archived: false },
-          orderBy: [{ sort_order: 'asc' }, { name: 'asc' }],
-        },
-      },
-    });
+    const category = await this.prisma.category.findUnique({ where: { slug } });
 
     if (!category || (!isAdmin && category.is_archived)) {
       throw new NotFoundException(`Category with slug ${slug} not found`);
@@ -304,78 +190,20 @@ export class CategoriesService extends BaseService<
   }
 
   async findOneDetailed(id: string, isAdmin = false) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      include: {
-        parent: true,
-        children: {
-          where: isAdmin ? {} : { is_archived: false },
-          orderBy: [{ sort_order: 'asc' }, { name: 'asc' }],
-        },
-      },
-    });
+    const category = await this.prisma.category.findUnique({ where: { id } });
 
     if (!category || (!isAdmin && category.is_archived)) {
       throw new NotFoundException(`Category with ID ${id} not found`);
     }
 
-    const [breadcrumbs, productCount] = await Promise.all([
-      this.getBreadcrumbs(category.id),
-      this.prisma.product.count({
-        where: {
-          category_id: { in: await this.getDescendantIds(category.id) },
-          ...(isAdmin ? {} : { is_archived: false }),
-        },
-      }),
-    ]);
+    const productCount = await this.prisma.product.count({
+      where: {
+        category_id: id,
+        ...(isAdmin ? {} : { is_archived: false }),
+      },
+    });
 
-    return { ...category, breadcrumbs, product_count: productCount };
-  }
-
-  /**
-   * Sahifa boshidagi "Electronics / Phones / Smartphones" zanjiri.
-   */
-  async getBreadcrumbs(
-    id: string,
-  ): Promise<Array<{ id: string; name: string; slug: string }>> {
-    const { byId } = await this.getSkeleton();
-
-    const chain: Array<{ id: string; name: string; slug: string }> = [];
-    let currentId: string | null = id;
-    const guard = new Set<string>(); // sikldan himoya
-
-    while (currentId && !guard.has(currentId)) {
-      guard.add(currentId);
-      const node = byId.get(currentId);
-      if (!node) break;
-      chain.unshift({ id: node.id, name: node.name, slug: node.slug });
-      currentId = node.parent_id;
-    }
-
-    return chain;
-  }
-
-  /**
-   * Kategoriya va uning barcha avlodlari ID'lari.
-   * Mahsulotlarni filtrlashda "ota kategoriyani tanlasam, ichidagilari ham chiqsin"
-   * talabini bajarish uchun ishlatiladi.
-   */
-  async getDescendantIds(id: string): Promise<string[]> {
-    const { childrenOf } = await this.getSkeleton();
-
-    const result: string[] = [];
-    const queue = [id];
-    const seen = new Set<string>();
-
-    while (queue.length) {
-      const currentId = queue.shift()!;
-      if (seen.has(currentId)) continue;
-      seen.add(currentId);
-      result.push(currentId);
-      queue.push(...(childrenOf.get(currentId) ?? []));
-    }
-
-    return result;
+    return { ...category, product_count: productCount };
   }
 
   async resolveIdBySlug(slug: string): Promise<string> {
@@ -383,9 +211,11 @@ export class CategoriesService extends BaseService<
       where: { slug },
       select: { id: true },
     });
+
     if (!category) {
       throw new NotFoundException(`Category with slug ${slug} not found`);
     }
+
     return category.id;
   }
 
@@ -404,46 +234,44 @@ export class CategoriesService extends BaseService<
       where.is_archived = false;
     }
 
-    if (query.root_only) {
-      where.parent_id = null;
-    } else if (query.parent_id) {
-      where.parent_id = query.parent_id;
-    }
-
     if (query.is_featured !== undefined) {
       where.is_featured = query.is_featured;
     }
 
     if (query.search) {
+      const term = query.search.trim();
+      // Qidiruv barcha tillarda ishlaydi: ruscha yozilgan so'rov o'zbekcha
+      // interfeysda ham natija berishi kerak
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
-        { slug: { contains: slugify(query.search), mode: 'insensitive' } },
-      ];
+        ...SUPPORTED_LANGUAGES.flatMap((lang) => [
+          { [`name_${lang}`]: { contains: term, mode: 'insensitive' } },
+          { [`description_${lang}`]: { contains: term, mode: 'insensitive' } },
+        ]),
+        { slug: { contains: slugify(term), mode: 'insensitive' } },
+      ] as Prisma.CategoryWhereInput[];
     }
 
     return where;
   }
 
-  private async attachProductCounts(categories: Category[], isAdmin: boolean) {
-    const counts = await this.getProductCountMap(isAdmin);
-    return categories.map((category) => ({
-      ...category,
-      product_count: counts.get(category.id) ?? 0,
-    }));
-  }
-
-  /** Bitta so'rov davomida takroriy daraxt o'qishlarini kamaytiradi. */
-  private async getProductCountMap(includeArchived: boolean) {
+  private async attachProductCounts(
+    categories: Category[],
+    includeArchived: boolean,
+  ) {
     const grouped = await this.prisma.product.groupBy({
       by: ['category_id'],
       where: includeArchived ? {} : { is_archived: false },
       _count: { _all: true },
     });
 
-    return new Map(
+    const counts = new Map(
       grouped.map((row) => [row.category_id, row._count._all] as const),
     );
+
+    return categories.map((category) => ({
+      ...category,
+      product_count: counts.get(category.id) ?? 0,
+    }));
   }
 
   private async resolveSlug(source: string, excludeId?: string) {
@@ -460,58 +288,61 @@ export class CategoriesService extends BaseService<
     );
   }
 
-  private async assertNameIsFree(name: string, excludeId?: string) {
-    const existing = await this.prisma.category.findUnique({
-      where: { name },
+  /**
+   * Nom unikalligi har bir tilda alohida tekshiriladi.
+   *
+   * Bazada `@unique` qo'yilmagan: uchta ustunga alohida unique indeks qo'yilsa,
+   * bir xil matnli ikkita til (masalan `name_ru === name_en`) yoki bo'sh
+   * qiymatlar to'qnashib ketardi.
+   */
+  private async assertNameIsFree(
+    names: Record<string, string>,
+    excludeId?: string,
+  ) {
+    const filled = SUPPORTED_LANGUAGES.map((lang) => ({
+      lang,
+      value: names[`name_${lang}`],
+    })).filter((item) => item.value?.trim());
+
+    if (!filled.length) return;
+
+    const existing = await this.prisma.category.findFirst({
+      where: {
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        OR: filled.map((item) => ({
+          [`name_${item.lang}`]: { equals: item.value, mode: 'insensitive' },
+        })),
+      },
       select: { id: true },
     });
-    if (existing && existing.id !== excludeId) {
+
+    if (existing) {
       throw new ConflictException('Category with this name already exists');
     }
   }
+}
 
-  private async assertParentExists(parentId: string) {
-    const parent = await this.prisma.category.findUnique({
-      where: { id: parentId },
-      select: { id: true },
-    });
-    if (!parent) {
-      throw new NotFoundException(`Category with ID ${parentId} not found`);
-    }
-  }
+/**
+ * `sortBy=name` so'ralganda joriy til ustuni bo'yicha saralaymiz - aks holda
+ * o'zbekcha interfeysda ro'yxat ruscha alifbo tartibida chiqib qolardi.
+ */
+function buildCategoryOrderBy(
+  query: CategoriesQueryDto,
+  lang: Lang,
+): Prisma.CategoryOrderByWithRelationInput[] {
+  const sortOrder = query.sortOrder ?? 'asc';
+  const requested = (CATEGORY_SORT_FIELDS as readonly string[]).includes(
+    query.sortBy ?? '',
+  )
+    ? (query.sortBy as string)
+    : 'sort_order';
 
-  /**
-   * Kategoriyani o'z avlodi ostiga ko'chirish daraxtda sikl hosil qiladi - bloklaymiz.
-   */
-  private async assertValidParentMove(id: string, parentId?: string) {
-    if (!parentId) return;
+  const field = requested === 'name' ? `name_${lang}` : requested;
 
-    if (parentId === id) {
-      throw new BadRequestException('Category cannot be its own parent');
-    }
+  return [{ [field]: sortOrder }, { [`name_${lang}`]: 'asc' }];
+}
 
-    await this.assertParentExists(parentId);
-
-    const descendants = await this.getDescendantIds(id);
-    if (descendants.includes(parentId)) {
-      throw new BadRequestException(
-        'Cannot move a category into its own subcategory',
-      );
-    }
-  }
-
-  private async cascadeArchive(id: string, isArchived: boolean) {
-    const ids = await this.getDescendantIds(id);
-
-    await this.prisma.$transaction([
-      this.prisma.category.updateMany({
-        where: { id: { in: ids } },
-        data: { is_archived: isArchived },
-      }),
-      this.prisma.product.updateMany({
-        where: { category_id: { in: ids } },
-        data: { is_archived: isArchived },
-      }),
-    ]);
-  }
+/** Slug uchun manba: mavjud bo'lgan birinchi til. */
+function pickAnyName(name: { uz?: string; ru?: string; en?: string }): string {
+  return name.uz?.trim() || name.ru?.trim() || name.en?.trim() || 'category';
 }

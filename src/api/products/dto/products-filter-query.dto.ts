@@ -66,21 +66,11 @@ export class ProductsFilterQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description:
       "Kategoriya slug'i orqali filtr (`category_id` o'rniga ishlatiladi).",
-    example: 'smartfonlar',
+    example: 'avtomaticheskie-nasosy',
   })
   @IsOptional()
   @IsString()
   category_slug?: string;
-
-  @ApiPropertyOptional({
-    default: true,
-    description:
-      'Ota kategoriya tanlanganda ichki kategoriyalardagi mahsulotlar ham chiqadi.',
-  })
-  @ToBoolean()
-  @IsBoolean()
-  @IsOptional()
-  include_descendants?: boolean = true;
 
   // --- Narx -----------------------------------------------------------------
 
@@ -128,7 +118,7 @@ export class ProductsFilterQueryDto extends PaginationQueryDto {
   // --- Atributlar / brend / teg --------------------------------------------
 
   @ApiPropertyOptional({
-    description: 'Brendlar: `?brands=Apple,Samsung`.',
+    description: 'Brendlar: `?brands=OCO`.',
     type: [String],
   })
   @ToStringArray()

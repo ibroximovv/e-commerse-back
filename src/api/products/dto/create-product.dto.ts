@@ -7,45 +7,81 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ToBoolean, ToStringArray } from '../../../common/utils/transform.util';
+import {
+  ToBoolean,
+  ToNumber,
+  ToStringArray,
+} from '../../../common/utils/transform.util';
+import {
+  HasAtLeastOneLanguage,
+  LocalizedTextDto,
+} from '../../../common/dto/localized-text.dto';
 
 export class ProductAttributeDto {
-  @ApiProperty({ example: 'Color' })
-  @IsString()
-  @IsNotEmpty()
-  key: string;
+  @ApiProperty({
+    type: LocalizedTextDto,
+    description:
+      "Xarakteristika nomi. Birlikni kalitga qo'shmang (`Мощность`, `Мощность,W` emas) - " +
+      "aks holda bitta spetsifikatsiya bir nechta faset guruhiga bo'linib ketadi.",
+    example: { uz: 'Quvvat', ru: 'Мощность', en: 'Power' },
+  })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  @HasAtLeastOneLanguage()
+  key: LocalizedTextDto;
 
-  @ApiProperty({ example: 'Black' })
-  @IsString()
-  @IsNotEmpty()
-  value: string;
+  @ApiProperty({
+    type: LocalizedTextDto,
+    description:
+      'Qiymat. Sonli qiymatlar uchala tilda bir xil yoziladi (`250`), matnli ' +
+      'qiymatlar esa tarjima qilinadi (`Медный` / `Mis` / `Copper`).',
+    example: { uz: '250', ru: '250', en: '250' },
+  })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  @HasAtLeastOneLanguage()
+  value: LocalizedTextDto;
 
   @ApiPropertyOptional({
-    example: 'W',
+    type: LocalizedTextDto,
     description:
       "O'lchov birligi. Qiymatdan ajratib saqlanadi, shunda fasetlarda " +
       '"Quvvat" bitta guruh bo\'lib qoladi va son bo\'yicha saralash mumkin.',
+    example: { uz: 'Vt', ru: 'Вт', en: 'W' },
   })
-  @IsString()
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
   @IsOptional()
-  unit?: string;
+  unit?: LocalizedTextDto;
 }
 
 export class CreateProductDto {
-  @ApiProperty({ example: 'iPhone 15 Pro' })
-  @IsString()
-  @IsNotEmpty()
-  name: string;
+  @ApiProperty({
+    type: LocalizedTextDto,
+    description:
+      "Mahsulot nomi. Kamida bitta til shart; qolganlari bo'sh qolsa mavjud " +
+      'tildan nusxalanadi.',
+    example: {
+      uz: 'Avtomatik suv nasosi 1WZB-250 (alyuminiy)',
+      ru: 'Автоматический водяной насос 1WZB-250 (алюминий)',
+      en: 'Automatic water pump 1WZB-250 (aluminium)',
+    },
+  })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  @HasAtLeastOneLanguage()
+  name: LocalizedTextDto;
 
   @ApiPropertyOptional({
-    example: 'iphone-15-pro',
-    description: "Bo'sh qoldirilsa `name` dan avtomatik generatsiya qilinadi.",
+    example: 'avtomaticheskiy-vodyanoy-nasos-1wzb-250',
+    description: "Bo'sh qoldirilsa nomdan avtomatik generatsiya qilinadi.",
   })
   @IsString()
   @IsOptional()
@@ -55,25 +91,26 @@ export class CreateProductDto {
   slug?: string;
 
   @ApiPropertyOptional({
-    example: 'APL-IP15P-256-BLK',
-    description: 'Ombor kodi (unikal)',
+    example: '1WZB-250',
+    description: 'Ombor kodi / katalog modeli (unikal)',
   })
   @IsString()
   @IsOptional()
   sku?: string;
 
-  @ApiPropertyOptional({ example: 'Latest Apple iPhone' })
-  @IsString()
+  @ApiPropertyOptional({ type: LocalizedTextDto })
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
   @IsOptional()
-  description?: string;
+  description?: LocalizedTextDto;
 
-  @ApiPropertyOptional({ example: 'Apple' })
+  @ApiPropertyOptional({ example: 'OCO' })
   @IsString()
   @IsOptional()
   brand?: string;
 
   @ApiPropertyOptional({
-    example: ['smartphone', 'apple', '5g'],
+    example: ['1wzb', 'nasos', 'avtomatik'],
     description: 'Qidiruv va filtr uchun teglar.',
   })
   @ToStringArray()
@@ -119,7 +156,7 @@ export class CreateProductDto {
   @Min(0)
   stock?: number = 0;
 
-  @ApiPropertyOptional({ example: ['uploads/iphone.png'] })
+  @ApiPropertyOptional({ example: ['uploads/1wzb-250.png'] })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -130,12 +167,64 @@ export class CreateProductDto {
   @IsNotEmpty()
   category_id: string;
 
-  @ApiPropertyOptional({ type: [ProductAttributeDto] })
+  @ApiPropertyOptional({
+    type: [ProductAttributeDto],
+    description:
+      'Katalogdagi barcha xarakteristikalar shu yerga kiritiladi: quvvat, ' +
+      "maksimal napor, o'tkazish qobiliyati, aylanish chastotasi, so'rish " +
+      'balandligi, teshik diametri, himoya klassi, kuchlanish, chastota, ' +
+      "amperaj, og'irlik, membrana, bosim, harorat va h.k.",
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductAttributeDto)
   @IsOptional()
   attributes?: ProductAttributeDto[] = [];
+
+  // --- Fiskalizatsiya (Payme cheki) -----------------------------------------
+
+  @ApiPropertyOptional({
+    example: '08471001001000000',
+    description:
+      'MXIK / IKPU - soliq organidagi tovar klassifikatori kodi. Payme ' +
+      "chekni shu kod bilan fiskallashtiradi. Bo'sh qolsa `.env` dagi " +
+      '`PAYME_DEFAULT_IKPU_CODE` ishlatiladi.',
+  })
+  @IsString()
+  @IsOptional()
+  ikpu_code?: string;
+
+  @ApiPropertyOptional({
+    example: '1501886',
+    description: "Qadoqlash kodi. Bo'sh qolsa `PAYME_DEFAULT_PACKAGE_CODE`.",
+  })
+  @IsString()
+  @IsOptional()
+  package_code?: string;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      "QQS stavkasi foizda (0 yoki 12). Bo'sh qolsa `.env` dagi qiymat.",
+  })
+  @ToNumber()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  vat_percent?: number;
+
+  @ApiPropertyOptional({
+    example: 241092,
+    description:
+      "O'lchov birligi klassifikatori kodi (dona uchun 241092). " +
+      "Bo'sh qolsa `PAYME_DEFAULT_UNITS`.",
+  })
+  @ToNumber()
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  units?: number;
 
   @ApiPropertyOptional({
     default: false,

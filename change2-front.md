@@ -1,5 +1,24 @@
 # Frontend Dasturchilar Uchun API Qo'llanmasi va O'zgarishlar (change2-front.md)
 
+> ## ⚠️ BU HUJJAT ESKIRGAN
+>
+> Katalog OCO «Каталог 2026-III» ga moslashtirilgandan keyin API jiddiy
+> o'zgardi. Quyidagilar bu yerda **noto'g'ri** yozilgan:
+>
+> - `Product.name` / `description` endi bitta satr emas — uch tilda saqlanadi;
+> - `attributes` elementi `{key, value}` emas — `{key, value, unit}`, har biri 3 tilli;
+> - `POST /api/payments` **o'chirilgan** → `POST /api/payments/checkout`;
+> - `payment.transaction_id` → `payment.payme_transaction_id`;
+> - `provider` faqat `payme` (CLICK yo'q);
+> - javob konvertida `message`/`meta` `null` emas — bo'lmasa **umuman yo'q**,
+>   va yangi `language` maydoni bor;
+> - kategoriya daraxti (`parent_id`, `/tree`, breadcrumbs) olib tashlangan;
+> - `Product` da yangi fiskalizatsiya maydonlari bor.
+>
+> **Joriy hujjat: [front.md](./front.md)**
+>
+> Bu fayl faqat tarix uchun qoldirilgan. Yangi ish uchun `front.md` ni o'qing.
+
 Bu qo'llanma React, Next.js, Vue yoki mobil ilova dasturchilari uchun yangilangan API endpointlari, DTOlar, javob formatlari va qulay namunalarni taqdim etadi.
 
 ---
