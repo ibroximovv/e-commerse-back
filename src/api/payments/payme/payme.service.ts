@@ -583,7 +583,7 @@ export class PaymeService implements OnModuleInit {
   }
 
   private async findByTransactionId(transactionId: string) {
-    return this.prisma.payment.findUnique({
+    return this.prisma.payment.findFirst({
       where: { payme_transaction_id: transactionId },
     });
   }

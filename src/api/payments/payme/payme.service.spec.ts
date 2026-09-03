@@ -51,6 +51,21 @@ describe('PaymeService', () => {
           ) ?? null
         );
       }),
+      findFirst: jest.fn(({ where }) => {
+        const list = [...payments.values()];
+        if (where?.id) return list.find((p) => p.id === where.id) ?? null;
+        if (where?.order_id) {
+          return list.find((p) => p.order_id === where.order_id) ?? null;
+        }
+        if (where?.payme_transaction_id) {
+          return (
+            list.find(
+              (p) => p.payme_transaction_id === where.payme_transaction_id,
+            ) ?? null
+          );
+        }
+        return list[0] ?? null;
+      }),
       findMany: jest.fn(() => [...payments.values()]),
       create: jest.fn(({ data }) => {
         const payment = { id: `pay-${payments.size + 1}`, ...data };

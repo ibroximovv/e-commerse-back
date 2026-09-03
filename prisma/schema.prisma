@@ -293,7 +293,7 @@ model Payment {
   // --- Payme Merchant API maydonlari ---------------------------------------
   /// Payme tomonidagi tranzaksiya identifikatori (`params.id`).
   /// Unikal - shu sabab bir tranzaksiya ikki marta yozilmaydi (idempotentlik).
-  payme_transaction_id String? @unique
+  payme_transaction_id String?
   payme_state          PaymeState?
   /// Payme yuborgan `params.time` (epoch ms). Double 2^53 gacha aniq -
   /// epoch ms uchun yetarli, BigInt esa JSON.stringify'da xato beradi.
@@ -310,4 +310,5 @@ model Payment {
   @@index([status])
   @@index([provider])
   @@index([payme_state])
+  @@index([payme_transaction_id])
 }

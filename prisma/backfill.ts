@@ -84,10 +84,31 @@ function localize(field: string, value: unknown): Record<string, string> {
 /** Hujjat allaqachon ko'p tilli ko'rinishga o'tganmi. */
 function alreadyLocalized(doc: any, field: string): boolean {
   return (
-    doc[`${field}_uz`] !== undefined ||
-    doc[`${field}_ru`] !== undefined ||
-    doc[`${field}_en`] !== undefined
+    typeof doc[`${field}_uz`] === 'string' &&
+    typeof doc[`${field}_ru`] === 'string' &&
+    typeof doc[`${field}_en`] === 'string'
   );
+}
+
+async function dropObsoleteIndexes() {
+  const obsolete: Array<{ collection: string; index: string }> = [
+    { collection: 'Category', index: 'Category_name_key' },
+    { collection: 'Category', index: 'Category_parent_id_idx' },
+    { collection: 'Category', index: 'Category_parent_id_is_archived_idx' },
+    { collection: 'Product', index: 'Product_name_idx' },
+    { collection: 'Payment', index: 'Payment_transaction_id_key' },
+  ];
+  for (const { collection, index } of obsolete) {
+    try {
+      await prisma.$runCommandRaw({
+        dropIndexes: collection,
+        index,
+      });
+      console.log(`Index ${index} dropped from ${collection}`);
+    } catch {
+      // Index might already be dropped or not exist
+    }
+  }
 }
 
 async function findAll(collection: string): Promise<any[]> {
@@ -115,6 +136,9 @@ async function applyUpdates(
       update: collection,
       updates: chunk.map((item) => ({ ...item, multi: false })),
     });
+    if (result?.writeErrors?.length) {
+      console.error(`Write errors on ${collection}:`, result.writeErrors);
+    }
     applied += Number(result?.nModified ?? 0);
   }
 
@@ -272,6 +296,7 @@ async function backfillProducts() {
 
 async function main() {
   console.log('Backfill boshlandi...');
+  await dropObsoleteIndexes();
   await backfillCategories();
   await backfillProducts();
   console.log('Backfill tugadi.');
