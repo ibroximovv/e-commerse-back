@@ -8,6 +8,7 @@ import { PaymeErrorCode } from './payme.constants';
 
 const PAYME_KEY = 'test_secret_key';
 const ORDER_ID = 'order-1';
+const PRODUCT_ID = 'product-1';
 const TX_ID = 'payme-tx-1';
 
 /**
@@ -20,6 +21,8 @@ describe('PaymeService', () => {
   let service: PaymeService;
   let orders: Map<string, any>;
   let payments: Map<string, any>;
+  let transactions: Map<string, any>;
+  let products: Map<string, any>;
   let orderItems: any[];
 
   /** Har bir testdan oldin tiklanadi - test ichida `delete env.X` qilish mumkin. */
@@ -42,40 +45,86 @@ describe('PaymeService', () => {
       findUnique: jest.fn(({ where }) => {
         const list = [...payments.values()];
         if (where.id) return list.find((p) => p.id === where.id) ?? null;
-        if (where.order_id) {
-          return list.find((p) => p.order_id === where.order_id) ?? null;
-        }
-        return (
-          list.find(
-            (p) => p.payme_transaction_id === where.payme_transaction_id,
-          ) ?? null
-        );
-      }),
-      findFirst: jest.fn(({ where }) => {
-        const list = [...payments.values()];
-        if (where?.id) return list.find((p) => p.id === where.id) ?? null;
-        if (where?.order_id) {
-          return list.find((p) => p.order_id === where.order_id) ?? null;
-        }
-        if (where?.payme_transaction_id) {
-          return (
-            list.find(
-              (p) => p.payme_transaction_id === where.payme_transaction_id,
-            ) ?? null
-          );
-        }
-        return list[0] ?? null;
+        return list.find((p) => p.order_id === where.order_id) ?? null;
       }),
       findMany: jest.fn(() => [...payments.values()]),
-      create: jest.fn(({ data }) => {
-        const payment = { id: `pay-${payments.size + 1}`, ...data };
+      upsert: jest.fn(({ where, create, update }) => {
+        const existing = [...payments.values()].find(
+          (p) => p.order_id === where.order_id,
+        );
+        const payment = existing
+          ? { ...existing, ...update }
+          : { id: `pay-${payments.size + 1}`, ...create };
         payments.set(payment.id, payment);
         return payment;
       }),
+      updateMany: jest.fn(({ where, data }) => {
+        let count = 0;
+        for (const [id, payment] of payments) {
+          const matches = Object.entries(where).every(
+            ([field, value]) => payment[field] === value,
+          );
+          if (!matches) continue;
+          payments.set(id, { ...payment, ...data });
+          count += 1;
+        }
+        return { count };
+      }),
+    },
+    paymeTransaction: {
+      findUnique: jest.fn(
+        ({ where }) =>
+          [...transactions.values()].find(
+            (t) => t.transaction_id === where.transaction_id,
+          ) ?? null,
+      ),
+      findFirst: jest.fn(
+        ({ where }) =>
+          [...transactions.values()]
+            .filter(
+              (t) =>
+                t.order_id === where.order_id &&
+                where.state.in.includes(t.state),
+            )
+            .sort((a, b) => b.create_time - a.create_time)[0] ?? null,
+      ),
+      findMany: jest.fn(({ where }) =>
+        [...transactions.values()]
+          .filter(
+            (t) =>
+              t.create_time >= where.create_time.gte &&
+              t.create_time <= where.create_time.lte,
+          )
+          .sort((a, b) => a.create_time - b.create_time),
+      ),
+      create: jest.fn(({ data }) => {
+        const transaction = {
+          id: `ptx-${transactions.size + 1}`,
+          perform_time: null,
+          cancel_time: null,
+          reason: null,
+          ...data,
+        };
+        transactions.set(transaction.id, transaction);
+        return transaction;
+      }),
       update: jest.fn(({ where, data }) => {
-        const payment = { ...payments.get(where.id), ...data };
-        payments.set(where.id, payment);
-        return payment;
+        const transaction = { ...transactions.get(where.id), ...data };
+        transactions.set(where.id, transaction);
+        return transaction;
+      }),
+    },
+    product: {
+      update: jest.fn(({ where, data }) => {
+        const product = { ...products.get(where.id) };
+        for (const [field, value] of Object.entries<any>(data)) {
+          if (value?.increment !== undefined) product[field] += value.increment;
+          else if (value?.decrement !== undefined)
+            product[field] -= value.decrement;
+          else product[field] = value;
+        }
+        products.set(where.id, product);
+        return product;
       }),
     },
     orderItem: {
@@ -99,12 +148,19 @@ describe('PaymeService', () => {
       ],
     ]);
     payments = new Map();
+    transactions = new Map();
+    products = new Map([
+      [
+        PRODUCT_ID,
+        { id: PRODUCT_ID, stock: 8, sales_count: 2, popularity_score: 6 },
+      ],
+    ]);
     env = {
       PAYME_KEY,
       PAYME_MERCHANT_ID: 'merchant-1',
       PAYME_CHECKOUT_URL: 'https://test.paycom.uz',
       PAYME_ACCOUNT_FIELD: 'order_id',
-      PAYME_RETURN_URL: 'https://oco.uz/orders',
+      PAYME_RETURN_URL: 'https://ocomarket.uz/orders',
       PAYME_DEFAULT_IKPU_CODE: '00702001001000000',
       PAYME_DEFAULT_PACKAGE_CODE: '1508957',
       PAYME_DEFAULT_VAT_PERCENT: '12',
@@ -113,6 +169,7 @@ describe('PaymeService', () => {
     // 1500 so'mlik buyurtma: 750 so'mdan 2 dona
     orderItems = [
       {
+        product_id: PRODUCT_ID,
         quantity: 2,
         price_at_purchase: 750,
         product: {
@@ -336,6 +393,17 @@ describe('PaymeService', () => {
         PaymeErrorCode.ORDER_NOT_FOUND,
       );
     });
+
+    it("allaqachon to'langan buyurtmani ikkinchi marta to'lattirmaydi", async () => {
+      // PENDING dan chiqqan buyurtma - to'lov o'tib bo'lgan. Busiz kassa
+      // oynasi ochilib, mijozdan ikkinchi marta pul yechilardi.
+      orders.get(ORDER_ID).status = OrderStatus.CONFIRMED;
+
+      await expectPaymeError(
+        call('CheckPerformTransaction', { account, amount: AMOUNT }),
+        PaymeErrorCode.ORDER_ALREADY_PAID,
+      );
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -358,6 +426,7 @@ describe('PaymeService', () => {
       expect(result.state).toBe(1);
       expect(result.transaction).toBeDefined();
       expect(result.create_time).toBeGreaterThan(0);
+      expect(transactions.size).toBe(1);
       expect(payments.size).toBe(1);
     });
 
@@ -366,7 +435,7 @@ describe('PaymeService', () => {
       const second: any = await create();
 
       expect(second).toEqual(first);
-      expect(payments.size).toBe(1);
+      expect(transactions.size).toBe(1);
     });
 
     it("12 soatdan eski so'rovni rad etadi", async () => {
@@ -381,7 +450,7 @@ describe('PaymeService', () => {
         create({ amount: 999 }),
         PaymeErrorCode.INVALID_AMOUNT,
       );
-      expect(payments.size).toBe(0);
+      expect(transactions.size).toBe(0);
     });
 
     it("buyurtmada boshqa faol tranzaksiya bo'lsa -31051 qaytaradi", async () => {
@@ -393,6 +462,28 @@ describe('PaymeService', () => {
       );
     });
 
+    it("to'langan buyurtma uchun yangi tranzaksiya ochmaydi (-31052)", async () => {
+      await create();
+      await call('PerformTransaction', { id: TX_ID });
+
+      await expectPaymeError(
+        create({ id: 'ikkinchi-tolov' }),
+        PaymeErrorCode.ORDER_ALREADY_PAID,
+      );
+    });
+
+    it("muddati o'tgan tranzaksiya buyurtmani band qilib turmaydi", async () => {
+      await create();
+      // 12 soatdan oshgan: mijoz kassani yopib ketgan, Payme ham unutgan
+      [...transactions.values()][0].create_time =
+        Date.now() - 13 * 60 * 60 * 1000;
+
+      const result: any = await create({ id: 'yangi-tx' });
+
+      expect(result.state).toBe(1);
+      expect([...transactions.values()][0].state).toBe(PaymeState.CANCELLED);
+    });
+
     it('bekor qilingan tranzaksiyadan keyin yangisini yaratishga ruxsat beradi', async () => {
       await create();
       await call('CancelTransaction', { id: TX_ID, reason: 1 });
@@ -400,8 +491,21 @@ describe('PaymeService', () => {
       const result: any = await create({ id: 'yangi-tx' });
 
       expect(result.state).toBe(1);
-      // `order_id` unikal - eski yozuv qayta ishlatiladi, ikkinchisi yaratilmaydi
-      expect(payments.size).toBe(1);
+      // Eski yozuv qayta ishlatilmaydi - Payme undan hali ham so'rashi mumkin
+      expect(transactions.size).toBe(2);
+    });
+
+    it('eski bekor qilingan tranzaksiya jurnalda saqlanib qoladi', async () => {
+      await create();
+      await call('CancelTransaction', { id: TX_ID, reason: 1 });
+      await create({ id: 'yangi-tx' });
+
+      // Payme sverkada yoki kechikkan so'rovda eski ID bo'yicha murojaat
+      // qilsa, "topilmadi" emas, haqiqiy holat qaytishi kerak
+      const result: any = await call('CheckTransaction', { id: TX_ID });
+
+      expect(result.state).toBe(-1);
+      expect(result.reason).toBe(1);
     });
   });
 
@@ -492,6 +596,17 @@ describe('PaymeService', () => {
 
       expect(result.state).toBe(-2);
       expect(orders.get(ORDER_ID).status).toBe(OrderStatus.CANCELLED);
+      expect([...payments.values()][0].status).toBe(PaymentStatus.REFUNDED);
+    });
+
+    it('pul qaytarilganda zaxira omborga qaytariladi', async () => {
+      await call('PerformTransaction', { id: TX_ID });
+      await call('CancelTransaction', { id: TX_ID, reason: 5 });
+
+      // Buyurtmada 2 dona bor edi: zaxira 8 -> 10, sotuv 2 -> 0
+      const product = products.get(PRODUCT_ID);
+      expect(product.stock).toBe(10);
+      expect(product.sales_count).toBe(0);
     });
 
     it('yetkazib berilgan buyurtmani bekor qilmaydi (-31007)', async () => {
@@ -588,7 +703,7 @@ describe('PaymeService', () => {
 
       expect(decoded).toBe(
         `m=merchant-1;ac.order_id=${ORDER_ID};a=150000;l=ru;cr=UZS;` +
-          'c=https://oco.uz/orders',
+          'c=https://ocomarket.uz/orders',
       );
     });
   });

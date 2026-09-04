@@ -1,0 +1,88 @@
+{
+  "source": "Каталог 2026-III (ООО «OCO»)",
+  "note": [
+    "PDF ichidagi rasm obyektlarini mahsulotlarga bog'lash jadvali.",
+    "`page` - PDF sahifasi, `num` - `pdfimages -list` dagi obyekt raqami.",
+    "TARTIB QO'LDA TEKSHIRILGAN: PDF'da rasm obyektlarining ichki tartibi",
+    "har doim ham sahifadagi ko'rinish tartibiga mos kelmaydi (masalan 5- va",
+    "13-, 14-, 16-sahifalar), shuning uchun avtomatik 'ketma-ket bog'lash'",
+    "ishlamaydi - jadval qo'lda tuzilgan.",
+    "Bitta SKU bir necha marta uchrasa - mahsulotda bir nechta rasm bo'ladi",
+    "(TANK-24V-W: katalogda 3 rangdagi bak bitta katakda ko'rsatilgan).",
+    "`sku` massiv bo'lsa - bitta rasm bir nechta mahsulotga tegishli",
+    "(katalogda YL90L-4 va YL90-L-2 bitta suratni bo'lishadi)."
+  ],
+  "images": [
+    { "page": 3, "num": 12, "sku": "1WZB-250" },
+    { "page": 3, "num": 13, "sku": "1WZB-370" },
+    { "page": 3, "num": 14, "sku": "1WZB-550" },
+    { "page": 3, "num": 15, "sku": "1WZB-750" },
+
+    { "page": 4, "num": 18, "sku": "PW-250" },
+    { "page": 4, "num": 19, "sku": "PW-370" },
+    { "page": 4, "num": 20, "sku": "PW-550" },
+    { "page": 4, "num": 21, "sku": "PW-750" },
+
+    { "page": 5, "num": 40, "sku": "PW-1100" },
+    { "page": 5, "num": 38, "sku": "XP-300" },
+
+    { "page": 6, "num": 43, "sku": "WZB-300A" },
+    { "page": 6, "num": 44, "sku": "WZB-400A" },
+
+    { "page": 7, "num": 47, "sku": "PW-250-SMART" },
+    { "page": 7, "num": 48, "sku": "PW-370-SMART" },
+
+    { "page": 8, "num": 65, "sku": "QDX-1.5-12-0.25F" },
+    { "page": 8, "num": 66, "sku": "QDX-1.5-16-0.37F" },
+    { "page": 8, "num": 67, "sku": "QDX-15-17-0.55F" },
+    { "page": 8, "num": 68, "sku": "QDX-30-6-0.75F" },
+
+    { "page": 9, "num": 71, "sku": "QDX-40-6-1.1" },
+    { "page": 9, "num": 73, "sku": "QDX-100-12-3.5" },
+    { "page": 9, "num": 74, "sku": "QDX-150-11-5.5" },
+
+    { "page": 10, "num": 77, "sku": "QDX-1.5-16-0.37" },
+    { "page": 10, "num": 78, "sku": "QDX-1.5-32-1.1" },
+
+    { "page": 11, "num": 81, "sku": "QB-60-AL" },
+    { "page": 11, "num": 82, "sku": "QB-60-CU" },
+    { "page": 11, "num": 83, "sku": "QB-70" },
+
+    { "page": 12, "num": 100, "sku": "CPM-130" },
+    { "page": 12, "num": 101, "sku": "CPM-146" },
+    { "page": 12, "num": 102, "sku": "CPM-158" },
+
+    { "page": 13, "num": 105, "sku": "JET-750-AL" },
+    { "page": 13, "num": 106, "sku": "JET-1100-AL" },
+    { "page": 13, "num": 108, "sku": "JET-750-CU" },
+    { "page": 13, "num": 109, "sku": "JET-1100-CU" },
+    { "page": 13, "num": 107, "sku": "JET-1100A" },
+
+    { "page": 14, "num": 113, "sku": "EPC-1" },
+    { "page": 14, "num": 114, "sku": "RS-25-6-180" },
+    { "page": 14, "num": 112, "sku": "RS-32-6-180" },
+    { "page": 14, "num": 115, "sku": "RS-25-8-180" },
+
+    { "page": 15, "num": 134, "sku": "RS-32-8-180" },
+    { "page": 15, "num": 132, "sku": "LPS-15-9-Z" },
+    { "page": 15, "num": 133, "sku": "LPS-15-9-Z-BR" },
+
+    { "page": 16, "num": 143, "sku": "TANK-8V" },
+    { "page": 16, "num": 145, "sku": "TANK-12V" },
+    { "page": 16, "num": 142, "sku": "TANK-19V" },
+    { "page": 16, "num": 140, "sku": "TANK-24V-W" },
+    { "page": 16, "num": 137, "sku": "TANK-24V-W" },
+    { "page": 16, "num": 138, "sku": "TANK-24V-W" },
+    { "page": 16, "num": 144, "sku": "TANK-24V-L" },
+
+    { "page": 17, "num": 148, "sku": "TANK-36V" },
+    { "page": 17, "num": 149, "sku": "TANK-50V" },
+
+    { "page": 18, "num": 152, "sku": "MIG-300" },
+    { "page": 18, "num": 155, "sku": "MIG-400" },
+    { "page": 18, "num": 153, "sku": ["YL90L-4", "YL90-L-2"] },
+
+    { "page": 19, "num": 158, "sku": "DNB-1000-VA" },
+    { "page": 19, "num": 159, "sku": "DNB-2000-VA" }
+  ]
+}

@@ -45,6 +45,8 @@ export const PaymeErrorCode = {
   ORDER_NOT_FOUND: -31050,
   /** Buyurtma allaqachon boshqa tranzaksiyada band. */
   ORDER_IN_PROGRESS: -31051,
+  /** Buyurtma allaqachon to'langan - ikkinchi marta to'lab bo'lmaydi. */
+  ORDER_ALREADY_PAID: -31052,
 } as const;
 
 /** Payme `state` raqamlari. Bazadagi enum shu qiymatlarga moslanadi. */
@@ -55,14 +57,17 @@ export const PAYME_STATE_CODES: Record<PaymeState, number> = {
   [PaymeState.CANCELLED_AFTER_PERFORM]: -2,
 };
 
-/** Tranzaksiya hali yaratilmagan bo'lsa `CheckTransaction` shuni qaytaradi. */
-export const PAYME_STATE_NONE = 0;
-
 /**
  * Payme yaratilgan tranzaksiyani 12 soat ichida yakunlashi kerak.
  * Kechikkan `CreateTransaction` rad etiladi (-31008).
  */
 export const PAYME_TRANSACTION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Protokolda 4 - "tranzaksiya muddati tugadi". Vaqti o'tgan tranzaksiyani
+ * o'zimiz bekor qilganda `reason` shu qiymat bilan yoziladi.
+ */
+export const PAYME_TIMEOUT_CANCEL_REASON = 4;
 
 /** So'mni tiyinga o'giradi - Payme barcha summalarni tiyinda yuboradi. */
 export function toTiyin(amountInSom: number): number {

@@ -16,7 +16,7 @@ import { RawResponse } from '../../../common/decorators/raw-response.decorator';
  *  - javob standart `{success, data}` o'ramiga solinmaydi (`@RawResponse`).
  *
  * Merchant kabinetida ko'rsatiladigan manzil:
- *   https://<domen>/api/payments/payme
+ *   https://api.ocomarket.uz/api/payments/payme
  */
 @ApiTags('Payments')
 @Controller('api/payments/payme')

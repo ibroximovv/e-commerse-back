@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   OrderStatus,
-  Payment,
   PaymeState,
+  PaymeTransaction,
   PaymentStatus,
   Prisma,
 } from '@prisma/client';
@@ -14,9 +14,10 @@ import {
   Lang,
   normalizeLanguage,
 } from '../../../common/i18n/locale';
+import { POPULARITY_WEIGHTS } from '../../products/products.pricing';
 import {
   PAYME_STATE_CODES,
-  PAYME_STATE_NONE,
+  PAYME_TIMEOUT_CANCEL_REASON,
   PAYME_TRANSACTION_TIMEOUT_MS,
   PaymeMethod,
   toSom,
@@ -214,6 +215,7 @@ export class PaymeService implements OnModuleInit {
     amount: number | undefined,
   ) {
     const order = await this.resolveOrder(account);
+    this.assertPayable(order);
     this.assertAmountMatches(order.total_amount, amount);
 
     // Chek nomlari xaridorning o'z tilida: u Payme kassasida saytda ko'rgan
@@ -293,15 +295,19 @@ export class PaymeService implements OnModuleInit {
     if (!transactionId) throw PaymeError.invalidRequest('id');
     if (typeof time !== 'number') throw PaymeError.invalidRequest('time');
 
-    const existing = await this.findByTransactionId(transactionId);
+    const existing = await this.findTransaction(transactionId);
 
     if (existing) {
       // Takroriy so'rov: faqat hali kutayotgan tranzaksiyani tasdiqlaymiz
-      if (existing.payme_state !== PaymeState.CREATED) {
+      if (existing.state !== PaymeState.CREATED) {
         throw PaymeError.cannotPerform('transaction is not in created state');
       }
-      if (this.isExpired(existing.payme_create_time)) {
-        await this.markCancelled(existing, PaymeState.CANCELLED, 4);
+      if (this.isExpired(existing.create_time)) {
+        await this.markCancelled(
+          existing,
+          PaymeState.CANCELLED,
+          PAYME_TIMEOUT_CANCEL_REASON,
+        );
         throw PaymeError.cannotPerform('transaction timed out');
       }
 
@@ -309,6 +315,7 @@ export class PaymeService implements OnModuleInit {
     }
 
     const order = await this.resolveOrder(account);
+    this.assertPayable(order);
     this.assertAmountMatches(order.total_amount, amount);
 
     // Payme 12 soatdan eski tranzaksiyani yaratishga ruxsat bermaydi
@@ -316,22 +323,15 @@ export class PaymeService implements OnModuleInit {
       throw PaymeError.cannotPerform('transaction timed out');
     }
 
-    // Bitta buyurtmada bir vaqtning o'zida faqat bitta faol tranzaksiya
-    const active = await this.prisma.payment.findUnique({
-      where: { order_id: order.id },
-    });
-
-    if (
-      active &&
-      active.payme_state !== null &&
-      active.payme_state !== PaymeState.CANCELLED
-    ) {
-      throw PaymeError.orderInProgress(this.accountField);
-    }
+    await this.assertNoActiveTransaction(order.id);
 
     const now = Date.now();
-    const data = {
-      amount: toSom(amount as number),
+    const amountInSom = toSom(amount as number);
+
+    // Jurnalga YANGI yozuv qo'shiladi, `Payment` esa shu oxirgi urinishning
+    // nusxasini saqlaydi - admin panel to'lov holatini bitta so'rovda ko'radi.
+    const mirror = {
+      amount: amountInSom,
       provider: 'payme',
       status: PaymentStatus.PENDING,
       payme_transaction_id: transactionId,
@@ -344,49 +344,102 @@ export class PaymeService implements OnModuleInit {
       error_message: null,
     };
 
-    // Bekor qilingan eski tranzaksiya bo'lsa yozuvni qayta ishlatamiz -
-    // `order_id` unikal, shuning uchun ikkinchi Payment yarata olmaymiz
-    const payment = active
-      ? await this.prisma.payment.update({
-          where: { id: active.id },
-          data,
-        })
-      : await this.prisma.payment.create({
-          data: { ...data, order_id: order.id },
-        });
+    const [transaction] = await this.prisma.$transaction([
+      this.prisma.paymeTransaction.create({
+        data: {
+          transaction_id: transactionId,
+          order_id: order.id,
+          amount: amountInSom,
+          state: PaymeState.CREATED,
+          time,
+          create_time: now,
+        },
+      }),
+      this.prisma.payment.upsert({
+        where: { order_id: order.id },
+        create: { ...mirror, order_id: order.id },
+        update: mirror,
+      }),
+    ]);
 
-    return this.createdView(payment);
+    return this.createdView(transaction);
+  }
+
+  /**
+   * Buyurtmada ayni damda ochiq tranzaksiya bo'lmasligini tekshiradi.
+   *
+   * Payme bitta hisob uchun ikkita parallel tranzaksiyani taqiqlaydi: aks
+   * holda mijozdan ikki marta pul yechilishi mumkin.
+   */
+  private async assertNoActiveTransaction(orderId: string) {
+    const active = await this.prisma.paymeTransaction.findFirst({
+      where: {
+        order_id: orderId,
+        state: { in: [PaymeState.CREATED, PaymeState.PERFORMED] },
+      },
+      orderBy: { create_time: 'desc' },
+    });
+
+    if (!active) return;
+
+    if (active.state === PaymeState.PERFORMED) {
+      throw PaymeError.orderAlreadyPaid(this.accountField);
+    }
+
+    // Muddati o'tgan tranzaksiya buyurtmani abadiy band qilib turmasligi
+    // kerak - uni yopamiz va yangisiga yo'l beramiz
+    if (this.isExpired(active.create_time)) {
+      await this.markCancelled(
+        active,
+        PaymeState.CANCELLED,
+        PAYME_TIMEOUT_CANCEL_REASON,
+      );
+      return;
+    }
+
+    throw PaymeError.orderInProgress(this.accountField);
   }
 
   /** To'lovni yakunlaydi: buyurtma CONFIRMED bo'ladi. */
   private async performTransaction(transactionId: string | undefined) {
-    const payment = await this.requireTransaction(transactionId);
+    const transaction = await this.requireTransaction(transactionId);
 
     // Allaqachon bajarilgan - o'sha natijani qaytaramiz (idempotentlik)
-    if (payment.payme_state === PaymeState.PERFORMED) {
+    if (transaction.state === PaymeState.PERFORMED) {
       return {
-        transaction: payment.id,
-        perform_time: payment.payme_perform_time ?? 0,
+        transaction: transaction.id,
+        perform_time: transaction.perform_time ?? 0,
         state: PAYME_STATE_CODES[PaymeState.PERFORMED],
       };
     }
 
-    if (payment.payme_state !== PaymeState.CREATED) {
+    if (transaction.state !== PaymeState.CREATED) {
       throw PaymeError.cannotPerform('transaction is cancelled');
     }
 
-    if (this.isExpired(payment.payme_create_time)) {
-      await this.markCancelled(payment, PaymeState.CANCELLED, 4);
+    if (this.isExpired(transaction.create_time)) {
+      await this.markCancelled(
+        transaction,
+        PaymeState.CANCELLED,
+        PAYME_TIMEOUT_CANCEL_REASON,
+      );
       throw PaymeError.cannotPerform('transaction timed out');
     }
 
     const performTime = Date.now();
 
-    // To'lov va buyurtma holati birga o'zgaradi - yarim bajarilgan holat
-    // qolib ketmasligi uchun bitta tranzaksiyada
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.payment.update({
-        where: { id: payment.id },
+    // Jurnal, to'lov nusxasi va buyurtma holati birga o'zgaradi - pul o'tib,
+    // buyurtma esa PENDING bo'lib qolgan holat yuzaga kelmasligi uchun
+    await this.prisma.$transaction([
+      this.prisma.paymeTransaction.update({
+        where: { id: transaction.id },
+        data: { state: PaymeState.PERFORMED, perform_time: performTime },
+      }),
+      this.prisma.payment.updateMany({
+        where: {
+          order_id: transaction.order_id,
+          payme_transaction_id: transaction.transaction_id,
+        },
         data: {
           status: PaymentStatus.SUCCESSFUL,
           payme_state: PaymeState.PERFORMED,
@@ -394,13 +447,13 @@ export class PaymeService implements OnModuleInit {
         },
       }),
       this.prisma.order.update({
-        where: { id: payment.order_id },
+        where: { id: transaction.order_id },
         data: { status: OrderStatus.CONFIRMED },
       }),
     ]);
 
     return {
-      transaction: updated.id,
+      transaction: transaction.id,
       perform_time: performTime,
       state: PAYME_STATE_CODES[PaymeState.PERFORMED],
     };
@@ -416,25 +469,25 @@ export class PaymeService implements OnModuleInit {
     transactionId: string | undefined,
     reason: number | undefined,
   ) {
-    const payment = await this.requireTransaction(transactionId);
+    const transaction = await this.requireTransaction(transactionId);
 
     // Allaqachon bekor qilingan - o'sha natijani qaytaramiz (idempotentlik)
     if (
-      payment.payme_state === PaymeState.CANCELLED ||
-      payment.payme_state === PaymeState.CANCELLED_AFTER_PERFORM
+      transaction.state === PaymeState.CANCELLED ||
+      transaction.state === PaymeState.CANCELLED_AFTER_PERFORM
     ) {
       return {
-        transaction: payment.id,
-        cancel_time: payment.payme_cancel_time ?? 0,
-        state: PAYME_STATE_CODES[payment.payme_state],
+        transaction: transaction.id,
+        cancel_time: transaction.cancel_time ?? 0,
+        state: PAYME_STATE_CODES[transaction.state],
       };
     }
 
-    const wasPerformed = payment.payme_state === PaymeState.PERFORMED;
+    const wasPerformed = transaction.state === PaymeState.PERFORMED;
 
     if (wasPerformed) {
       const order = await this.prisma.order.findUnique({
-        where: { id: payment.order_id },
+        where: { id: transaction.order_id },
         select: { status: true },
       });
 
@@ -448,31 +501,29 @@ export class PaymeService implements OnModuleInit {
       : PaymeState.CANCELLED;
 
     const updated = await this.markCancelled(
-      payment,
+      transaction,
       nextState,
       reason ?? null,
     );
 
     return {
       transaction: updated.id,
-      cancel_time: updated.payme_cancel_time ?? 0,
+      cancel_time: updated.cancel_time ?? 0,
       state: PAYME_STATE_CODES[nextState],
     };
   }
 
   /** Tranzaksiya holatini qaytaradi. */
   private async checkTransaction(transactionId: string | undefined) {
-    const payment = await this.requireTransaction(transactionId);
+    const transaction = await this.requireTransaction(transactionId);
 
     return {
-      create_time: payment.payme_create_time ?? 0,
-      perform_time: payment.payme_perform_time ?? 0,
-      cancel_time: payment.payme_cancel_time ?? 0,
-      transaction: payment.id,
-      state: payment.payme_state
-        ? PAYME_STATE_CODES[payment.payme_state]
-        : PAYME_STATE_NONE,
-      reason: payment.payme_reason ?? null,
+      create_time: transaction.create_time,
+      perform_time: transaction.perform_time ?? 0,
+      cancel_time: transaction.cancel_time ?? 0,
+      transaction: transaction.id,
+      state: PAYME_STATE_CODES[transaction.state],
+      reason: transaction.reason ?? null,
     };
   }
 
@@ -482,27 +533,23 @@ export class PaymeService implements OnModuleInit {
       throw PaymeError.invalidRequest('from/to');
     }
 
-    const payments = await this.prisma.payment.findMany({
-      where: {
-        provider: 'payme',
-        payme_time: { gte: from, lte: to },
-      },
-      orderBy: { payme_time: 'asc' },
+    // Bekor qilinganlari ham kiradi: sverkada Payme har bir urinishni ko'radi
+    const records = await this.prisma.paymeTransaction.findMany({
+      where: { create_time: { gte: from, lte: to } },
+      orderBy: { create_time: 'asc' },
     });
 
-    const transactions: PaymeTransactionView[] = payments.map((payment) => ({
-      id: payment.payme_transaction_id ?? '',
-      time: payment.payme_time ?? 0,
-      amount: toTiyin(payment.amount),
-      account: { [this.accountField]: payment.order_id },
-      create_time: payment.payme_create_time ?? 0,
-      perform_time: payment.payme_perform_time ?? 0,
-      cancel_time: payment.payme_cancel_time ?? 0,
-      transaction: payment.id,
-      state: payment.payme_state
-        ? PAYME_STATE_CODES[payment.payme_state]
-        : PAYME_STATE_NONE,
-      reason: payment.payme_reason ?? null,
+    const transactions: PaymeTransactionView[] = records.map((record) => ({
+      id: record.transaction_id,
+      time: record.time,
+      amount: toTiyin(record.amount),
+      account: { [this.accountField]: record.order_id },
+      create_time: record.create_time,
+      perform_time: record.perform_time ?? 0,
+      cancel_time: record.cancel_time ?? 0,
+      transaction: record.id,
+      state: PAYME_STATE_CODES[record.state],
+      reason: record.reason ?? null,
     }));
 
     return { transactions };
@@ -572,6 +619,20 @@ export class PaymeService implements OnModuleInit {
     return order;
   }
 
+  /**
+   * Buyurtma hali to'lanmaganmi.
+   *
+   * `PENDING` dan boshqa har qanday holat (CONFIRMED, SHIPPED, DELIVERED)
+   * to'lov allaqachon o'tganini bildiradi. Busiz mijozdan ikkinchi marta pul
+   * yechilishi mumkin edi: `CheckPerformTransaction` `allow: true` qaytarib,
+   * kassa oynasi ochilaverardi.
+   */
+  private assertPayable(order: { status: OrderStatus }) {
+    if (order.status !== OrderStatus.PENDING) {
+      throw PaymeError.orderAlreadyPaid(this.accountField);
+    }
+  }
+
   private assertAmountMatches(
     orderTotalInSom: number,
     amountInTiyin: number | undefined,
@@ -582,19 +643,19 @@ export class PaymeService implements OnModuleInit {
     }
   }
 
-  private async findByTransactionId(transactionId: string) {
-    return this.prisma.payment.findFirst({
-      where: { payme_transaction_id: transactionId },
+  private async findTransaction(transactionId: string) {
+    return this.prisma.paymeTransaction.findUnique({
+      where: { transaction_id: transactionId },
     });
   }
 
   private async requireTransaction(transactionId: string | undefined) {
     if (!transactionId) throw PaymeError.invalidRequest('id');
 
-    const payment = await this.findByTransactionId(transactionId);
-    if (!payment) throw PaymeError.transactionNotFound();
+    const transaction = await this.findTransaction(transactionId);
+    if (!transaction) throw PaymeError.transactionNotFound();
 
-    return payment;
+    return transaction;
   }
 
   /** Yaratilganiga 12 soatdan ko'p bo'lgan tranzaksiya yaroqsiz. */
@@ -604,17 +665,28 @@ export class PaymeService implements OnModuleInit {
   }
 
   private async markCancelled(
-    payment: Payment,
+    transaction: PaymeTransaction,
     state: PaymeState,
     reason: number | null,
   ) {
     const cancelTime = Date.now();
+    const refunded = state === PaymeState.CANCELLED_AFTER_PERFORM;
 
     const operations: Prisma.PrismaPromise<unknown>[] = [
-      this.prisma.payment.update({
-        where: { id: payment.id },
+      this.prisma.paymeTransaction.update({
+        where: { id: transaction.id },
+        data: { state, cancel_time: cancelTime, reason },
+      }),
+      // Nusxa faqat SHU tranzaksiyaga tegishli bo'lsa yangilanadi: mijoz
+      // qaytadan urinib yangi tranzaksiya ochgan bo'lsa, eskisining bekor
+      // qilinishi yangisining holatini buzib yubormasligi kerak
+      this.prisma.payment.updateMany({
+        where: {
+          order_id: transaction.order_id,
+          payme_transaction_id: transaction.transaction_id,
+        },
         data: {
-          status: PaymentStatus.FAILED,
+          status: refunded ? PaymentStatus.REFUNDED : PaymentStatus.FAILED,
           payme_state: state,
           payme_cancel_time: cancelTime,
           payme_reason: reason,
@@ -622,24 +694,46 @@ export class PaymeService implements OnModuleInit {
       }),
     ];
 
-    // To'langan buyurtma qaytarilsa - buyurtmani ham bekor qilamiz
-    if (state === PaymeState.CANCELLED_AFTER_PERFORM) {
+    // To'langan buyurtma qaytarilsa - buyurtma bekor qilinadi va zaxira
+    // omborga qaytariladi. `OrdersService` bekor qilishda ham shunday qiladi;
+    // busiz Payme orqali qaytarilgan tovar hisobdan yo'qolib qolardi.
+    if (refunded) {
+      const items = await this.prisma.orderItem.findMany({
+        where: { order_id: transaction.order_id },
+        select: { product_id: true, quantity: true },
+      });
+
+      for (const item of items) {
+        operations.push(
+          this.prisma.product.update({
+            where: { id: item.product_id },
+            data: {
+              stock: { increment: item.quantity },
+              sales_count: { decrement: item.quantity },
+              popularity_score: {
+                decrement: item.quantity * POPULARITY_WEIGHTS.sale,
+              },
+            },
+          }),
+        );
+      }
+
       operations.push(
         this.prisma.order.update({
-          where: { id: payment.order_id },
+          where: { id: transaction.order_id },
           data: { status: OrderStatus.CANCELLED },
         }),
       );
     }
 
     const [updated] = await this.prisma.$transaction(operations);
-    return updated as Payment;
+    return updated as PaymeTransaction;
   }
 
-  private createdView(payment: Payment) {
+  private createdView(transaction: PaymeTransaction) {
     return {
-      create_time: payment.payme_create_time ?? 0,
-      transaction: payment.id,
+      create_time: transaction.create_time,
+      transaction: transaction.id,
       state: PAYME_STATE_CODES[PaymeState.CREATED],
     };
   }

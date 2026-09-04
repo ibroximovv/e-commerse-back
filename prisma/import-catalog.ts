@@ -215,6 +215,45 @@ function readJson<T>(file: string): T {
   return JSON.parse(fs.readFileSync(full, 'utf8')) as T;
 }
 
+/**
+ * Katalog rasmlarini `uploads/catalog/` ga ko'chiradi.
+ *
+ * `uploads/` git'da kuzatilmaydi (foydalanuvchi yuklagan fayllar joyi),
+ * shuning uchun katalog suratlari repoda `prisma/catalog/images/` da yotadi
+ * va import paytida statik papkaga ko'chiriladi. Aks holda yangi serverda
+ * mahsulotlar bazada bo'lib, rasmlari 404 qaytarardi.
+ */
+function copyCatalogImages(): { copied: number; total: number } {
+  const source = path.resolve(OPTIONS.dir, 'images');
+  if (!fs.existsSync(source)) return { copied: 0, total: 0 };
+
+  const files = fs.readdirSync(source).filter((f) => !f.startsWith('.'));
+  const target = path.resolve(
+    process.env.UPLOAD_PATH ?? './uploads',
+    'catalog',
+  );
+
+  if (OPTIONS.dryRun) return { copied: 0, total: files.length };
+
+  fs.mkdirSync(target, { recursive: true });
+
+  let copied = 0;
+  for (const file of files) {
+    const from = path.join(source, file);
+    const to = path.join(target, file);
+    // Mavjud faylni faqat manba yangiroq bo'lsa qayta yozamiz
+    const stale =
+      !fs.existsSync(to) ||
+      fs.statSync(from).mtimeMs > fs.statSync(to).mtimeMs ||
+      fs.statSync(from).size !== fs.statSync(to).size;
+    if (!stale) continue;
+    fs.copyFileSync(from, to);
+    copied++;
+  }
+
+  return { copied, total: files.length };
+}
+
 // ---------------------------------------------------------------------------
 // Kategoriyalar
 // ---------------------------------------------------------------------------
@@ -425,6 +464,14 @@ async function main() {
   );
   const productsFile = readJson<{ products: ProductInput[] }>('products.json');
 
+  const images = copyCatalogImages();
+  if (images.total > 0) {
+    log(
+      `Rasmlar: ${images.total} ta topildi, ${images.copied} ta uploads/catalog/ ga ko'chirildi.`,
+    );
+    log('');
+  }
+
   log(`Kategoriyalar (${categoriesFile.categories.length} ta):`);
   const registry = await importCategories(categoriesFile.categories);
 
@@ -445,8 +492,12 @@ async function main() {
 
   log('');
   log('Natija:');
-  log(`  kategoriya : +${stats.categoriesCreated} yangi, ~${stats.categoriesUpdated} yangilandi`);
-  log(`  mahsulot   : +${stats.productsCreated} yangi, ~${stats.productsUpdated} yangilandi`);
+  log(
+    `  kategoriya : +${stats.categoriesCreated} yangi, ~${stats.categoriesUpdated} yangilandi`,
+  );
+  log(
+    `  mahsulot   : +${stats.productsCreated} yangi, ~${stats.productsUpdated} yangilandi`,
+  );
   if (OPTIONS.archiveMissing) {
     log(`  arxivlandi : ${stats.productsArchived}`);
   }

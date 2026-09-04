@@ -1,10 +1,10 @@
 # ==============================================================================
 # Nginx - backend API uchun alohida sub-domen
-# Serverdagi joylashuvi: /etc/nginx/sites-available/api.oco.uz.conf
+# Serverdagi joylashuvi: /etc/nginx/sites-available/api.ocomarket.uz.conf
 #
-#   sudo ln -s /etc/nginx/sites-available/api.oco.uz.conf /etc/nginx/sites-enabled/
+#   sudo ln -s /etc/nginx/sites-available/api.ocomarket.uz.conf /etc/nginx/sites-enabled/
 #   sudo nginx -t && sudo systemctl reload nginx
-#   sudo certbot --nginx -d api.oco.uz
+#   sudo certbot --nginx -d api.ocomarket.uz
 #
 # certbot 443/SSL blokini shu faylga o'zi qo'shadi.
 # ==============================================================================
@@ -12,13 +12,13 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name api.oco.uz;
+    server_name api.ocomarket.uz;
 
     # Rasm yuklash uchun (upload limiti backenddagi 5MB dan katta bo'lsin)
     client_max_body_size 20M;
 
-    access_log /var/log/nginx/api.oco.uz.access.log;
-    error_log  /var/log/nginx/api.oco.uz.error.log;
+    access_log /var/log/nginx/api.ocomarket.uz.access.log;
+    error_log  /var/log/nginx/api.ocomarket.uz.error.log;
 
     # Let's Encrypt tekshiruvi. Bu blok bo'lmasa so'rov pastdagi `location /`
     # ga tushib, Node'ga proxy qilinadi va Node 404 qaytaradi -> certbot yiqiladi.

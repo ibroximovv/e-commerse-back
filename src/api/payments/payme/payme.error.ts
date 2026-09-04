@@ -74,6 +74,18 @@ export class PaymeError extends Error {
     );
   }
 
+  static orderAlreadyPaid(field: string) {
+    return new PaymeError(
+      PaymeErrorCode.ORDER_ALREADY_PAID,
+      {
+        ru: 'Заказ уже оплачен',
+        uz: "Buyurtma allaqachon to'langan",
+        en: 'Order has already been paid',
+      },
+      field,
+    );
+  }
+
   static invalidAmount() {
     return new PaymeError(PaymeErrorCode.INVALID_AMOUNT, {
       ru: 'Неверная сумма',

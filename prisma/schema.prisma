@@ -229,6 +229,8 @@ model Order {
   total_amount     Float
   status           OrderStatus @default(PENDING)
   payment          Payment?
+  /// Buyurtma bo'yicha barcha Payme urinishlari (bekor qilinganlari ham).
+  payme_transactions PaymeTransaction[]
   shipping_address String?
   customer_phone   String?
   customer_name    String?
@@ -291,8 +293,11 @@ model Payment {
   error_message String?
 
   // --- Payme Merchant API maydonlari ---------------------------------------
+  // Bu maydonlar buyurtmaning ENG SO'NGGI Payme tranzaksiyasining nusxasi -
+  // admin panel bitta so'rov bilan to'lov holatini ko'rsatishi uchun. Protokol
+  // uchun haqiqiy manba `PaymeTransaction`: Payme eski tranzaksiya haqida ham
+  // so'rashi mumkin, bu yerda esa faqat oxirgisi turadi.
   /// Payme tomonidagi tranzaksiya identifikatori (`params.id`).
-  /// Unikal - shu sabab bir tranzaksiya ikki marta yozilmaydi (idempotentlik).
   payme_transaction_id String?
   payme_state          PaymeState?
   /// Payme yuborgan `params.time` (epoch ms). Double 2^53 gacha aniq -
@@ -311,4 +316,49 @@ model Payment {
   @@index([provider])
   @@index([payme_state])
   @@index([payme_transaction_id])
+}
+
+/// Payme tranzaksiyalari jurnali - protokol uchun yagona haqiqat manbai.
+///
+/// Nega alohida kolleksiya: `Payment.order_id` unikal, ya'ni bitta buyurtmaga
+/// bitta to'lov yozuvi to'g'ri keladi. Payme esa har urinish uchun YANGI
+/// tranzaksiya ochadi - kartada mablag' yetmasa mijoz qaytadan uriniadi.
+/// Agar bitta yozuvni qayta ishlatsak, avvalgi tranzaksiya ID'si o'chib
+/// ketadi va Payme keyinroq o'sha ID bilan `CheckTransaction` yoki
+/// `CancelTransaction` so'raganda "topilmadi" (-31003) qaytarardik. Sverkada
+/// (`GetStatement`) ham u ko'rinmay, hisob-kitob nomutanosib bo'lardi.
+///
+/// Shuning uchun bu yerdagi yozuvlar hech qachon qayta ishlatilmaydi: har bir
+/// `CreateTransaction` yangi hujjat qo'shadi, keyingi o'zgarish faqat holatni
+/// (`state`, vaqtlar, `reason`) yangilaydi.
+model PaymeTransaction {
+  id String @id @default(uuid()) @map("_id")
+
+  /// Payme tomonidagi identifikator (`params.id`). Unikal - takroriy so'rov
+  /// yangi yozuv yaratmaydi, ya'ni idempotentlik shu yerda ta'minlanadi.
+  transaction_id String @unique
+
+  order_id String
+  order    Order  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  /// So'mda. Payme bilan almashinuvda tiyinga (x100) o'giriladi.
+  amount Float
+  state  PaymeState
+  /// Payme yuborgan bekor qilish sababi kodi.
+  reason Int?
+
+  /// Payme yuborgan `params.time` (epoch ms). Double 2^53 gacha aniq -
+  /// epoch ms uchun yetarli, BigInt esa JSON.stringify'da xato beradi.
+  time         Float
+  /// Tranzaksiya BIZDA yaratilgan vaqt. `GetStatement` shu bo'yicha filtrlaydi.
+  create_time  Float
+  perform_time Float?
+  cancel_time  Float?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([order_id])
+  @@index([state])
+  @@index([create_time])
 }

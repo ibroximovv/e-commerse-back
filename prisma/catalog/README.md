@@ -8,6 +8,8 @@ Kategoriya nomlari PDF ning **2-sahifasidagi «Оглавление»** dan olin
 | `categories.json` | 8 ta kategoriya (2-sahifa tartibida) — katalog **tekis**, ichki kategoriya yo'q |
 | `products.json` | 54 ta mahsulot (3–19-sahifalar), `catalog_no` — katalogdagi raqami |
 | `generate-from-pdf.py` | JSON larni qayta hosil qiluvchi skript (PDF matnidan transkripsiya) |
+| `images/` | Mahsulot suratlari (PDF dan ajratilgan, 55 ta `.jpg`) |
+| `images.map.json` | PDF dagi rasm obyekti → SKU jadvali (qo'lda tekshirilgan) |
 
 ## Uch tillilik
 
@@ -45,6 +47,24 @@ npm run db:import:catalog -- --dry-run
 npm run db:import:catalog
 ```
 
+### Eski ma'lumotlar ustiga toza yuklash
+
+Bazada boshqa (test yoki eski) katalog bo'lsa, avval uni tozalang. Skript
+foydalanuvchilarga **tegmaydi** — admin hisobingiz saqlanadi:
+
+```bash
+npm run db:reset:catalog                            # faqat hisobot
+npm run db:reset:catalog -- --yes                   # katalog + savat + sharhlar
+npm run db:reset:catalog -- --yes --with-orders     # buyurtmalar ham
+npm run db:import:catalog
+```
+
+Buyurtmalar mavjud bo'lsa skript `--with-orders` siz **to'xtaydi**: MongoDB da
+tashqi kalitlar majburlanmaydi, ya'ni mahsulotni o'chirsak buyurtma qatori
+mavjud bo'lmagan mahsulotga ishora qilib qoladi va o'sha buyurtmani ochish
+xatolik beradi. Buyurtma tarixini saqlash kerak bo'lsa o'chirish o'rniga
+`npm run db:import:catalog -- --archive-missing` bilan arxivlang.
+
 Skript **idempotent**: kalit sifatida `sku` (topilmasa `slug`) ishlatiladi, shuning uchun
 qayta ishga tushirsangiz nusxa yaratmaydi.
 
@@ -76,9 +96,32 @@ yoki narxlarni admin panel orqali kiriting.
 
 ## Rasmlar
 
-PDF dagi rasmlar ajratib olinmagan — hamma mahsulotda `images: []`. Rasmlarni
-`POST /api/upload` orqali yuklab, qaytgan yo'lni `products.json` ga yozing yoki
-admin paneldan biriktiring.
+Barcha 54 mahsulotning surati PDF dan ajratib olingan va `images/` papkasida
+yotadi (55 ta `.jpg`, ~1.2 MB). `uploads/` git da kuzatilmaydi, shuning uchun
+suratlar repoda shu yerda saqlanadi va **import paytida** `uploads/catalog/`
+ga ko'chiriladi — yangi serverda alohida ish qilish shart emas.
+
+Qayta ajratish (PDF yangilansa):
+
+```bash
+sudo apt install poppler-utils imagemagick     # bir marta, faqat lokalda
+npm run catalog:images -- "/path/Каталог 2026-III.pdf"
+```
+
+Skript `images.map.json` dagi jadval bo'yicha ishlaydi. **Jadval qo'lda
+tuzilgan va tekshirilgan**, chunki PDF ichida rasm obyektlarining tartibi
+sahifadagi ko'rinish tartibiga mos kelmaydi:
+
+- 5-sahifada rasmlar teskari saqlangan (XP-300 PW-1100 dan oldin keladi);
+- 13-, 14-, 16-sahifalarda tartib aralash;
+- 45-mahsulot (Tank 24V W) katalogda **uchta** rangdagi bak bilan ko'rsatilgan
+  — unda 3 ta rasm bor;
+- 51 va 52 (YL90L-4, YL90-L-2) katalogda **bitta** suratni bo'lishadi;
+- bir nechta surat PDF da shaffoflik niqobi (smask) bilan saqlangan — niqobsiz
+  ular qop-qora fonda chiqadi, skript niqobni oq fonga birlashtiradi.
+
+PDF yangi nashri kelsa jadvalni qayta tekshirish kerak: obyekt raqamlari
+o'zgaradi va skript mos kelmasa xato bilan to'xtaydi.
 
 ## Katalogdagi ziddiyatli ma'lumotlar
 
