@@ -104,6 +104,18 @@ describe('PaymeController', () => {
     expect(response.error.code).toBe(PaymeErrorCode.PARSE_ERROR);
   });
 
+  it('HTTP status 200 qaytaradi', () => {
+    // NestJS `@Post()` uchun standart 201 qaytaradi, Payme esa HAR DOIM 200
+    // kutadi. Bu metadata bo'lgani uchun `controller.handle()` ni chaqirib
+    // tekshirib bo'lmaydi - dekoratordagi qiymatni o'qiymiz.
+    const status = Reflect.getMetadata(
+      '__httpCode__',
+      PaymeController.prototype.handle,
+    );
+
+    expect(status).toBe(200);
+  });
+
   it('id yuborilmasa null qaytaradi', async () => {
     paymeService.handle.mockResolvedValue({});
 

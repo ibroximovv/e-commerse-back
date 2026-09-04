@@ -320,6 +320,12 @@ Authorization: Bearer <access_token>
 { "order_id": "<buyurtma-id>", "lang": "uz" }
 ```
 
+> `provider` yuborilmaydi — ulangan yagona kassa Payme, servis baribir har
+> doim Payme havolasini quradi. Eski mijoz uni yuborsa ham xato bo'lmaydi:
+> `ValidationPipe` `whitelist: true` bilan ishlaydi va notanish maydonni
+> jimgina olib tashlaydi. Ikkinchi provayder ulanganda maydon qaytadan
+> qo'shiladi (ixtiyoriy maydon — buzuvchi o'zgarish emas).
+
 Javob:
 
 ```json
@@ -534,6 +540,36 @@ Xato javobi shakli (HTTP status baribir `200`):
 
 ## 10. Test kassasida sinash
 
+### 10.0. Avval LOKALDA: `npm run payme:selftest`
+
+Payme kabinetiga chiqishdan oldin butun protokolni o'z mashinangizda tekshirib
+oling. Skript Payme serverining **o'rnida turadi**: webhook'ingizga haqiqiy
+JSON-RPC so'rovlarini yuboradi va javoblarni tekshiradi — kabinetdagi sandbox
+testi ham xuddi shu holatlarni chaqiradi.
+
+```bash
+# 1-terminal
+PAYME_KEY=test-kalit npm run start:dev
+
+# 2-terminal
+PAYME_KEY=test-kalit npm run payme:selftest
+```
+
+Skript o'ziga vaqtinchalik foydalanuvchi, mahsulot va buyurtma yaratadi va
+oxirida hammasini o'chiradi — bazangizdagi ma'lumotlarga tegmaydi.
+
+Tekshiriladigan 25 ta holat: avtorizatsiya (`-32504`), noma'lum metod
+(`-32601`), **HTTP status 200**, buyurtma topilmadi (`-31050`), summa mos emas
+(`-31001`), chek qatorlari va yig'indisi, `CreateTransaction` idempotentligi,
+parallel tranzaksiya (`-31051`), `PerformTransaction` va buyurtma
+`CONFIRMED` bo'lishi, qayta to'lash (`-31052`), `GetStatement`, qaytarish
+(`state: -2`), **zaxiraning omborga qaytishi**, `REFUNDED` holati va
+`-31003`.
+
+> ⚠️ `PerformTransaction` `-31008` bilan yiqilsa — MongoDB **replica set**
+> rejimida emas. Prisma `$transaction` uni talab qiladi. Tekshirish:
+> `mongosh --eval 'db.adminCommand({hello:1}).setName'`
+
 ### 10.1. Serverni internetga chiqarish
 
 Payme `localhost` ga yeta olmaydi. Ishlab chiqish paytida **ngrok**:
@@ -629,6 +665,7 @@ Prod'ga chiqishdan oldin:
 | :-- | :-- | :-- |
 | Barcha to'lovlar `-31050` | `PAYME_ACCOUNT_FIELD` kabinetdagi nomga mos emas | Kabinetdagi maydon nomini `.env` ga aynan ko'chiring |
 | `-32504` doim keladi | Kalit noto'g'ri yoki test/prod kaliti almashib ketgan | Kabinetdan kalitni qayta oling |
+| Lokalda `-32504`, log'da "PAYME_KEY sozlanmagan" | `.env` ga kalit qo'shilgan, lekin **eski server jarayoni** portni band qilib turibdi — yangisi `EADDRINUSE` bilan ko'tarilmagan | `lsof -ti :3000 \| xargs -r kill` → `npm run start:dev`. `.env` faqat **ishga tushishda** o'qiladi |
 | `-31001` doim keladi | Chek qatorlari yig'indisi buyurtma summasiga teng emas | Loglarni qarang: aniq raqamlar yoziladi |
 | `-31008` "fiscal data is not configured" | IKPU hech qayerda yo'q | `PAYME_DEFAULT_IKPU_CODE` ni to'ldiring |
 | Payme umuman so'rov yubormayapti | Server internetdan ochiq emas yoki HTTPS yo'q | ngrok / domen + sertifikat |

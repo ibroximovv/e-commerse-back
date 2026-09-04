@@ -1,4 +1,12 @@
-import { Body, Controller, Headers, Logger, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+} from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaymeService } from './payme.service';
 import { PaymeError } from './payme.error';
@@ -26,6 +34,9 @@ export class PaymeController {
   constructor(private readonly paymeService: PaymeService) {}
 
   @Post()
+  // NestJS `@Post()` uchun standart javob 201, protokol esa HAR DOIM 200 ni
+  // talab qiladi - xato ham javob tanasidagi `error` orqali qaytadi.
+  @HttpCode(HttpStatus.OK)
   @RawResponse()
   @ApiExcludeEndpoint()
   @ApiOperation({ summary: 'Payme Merchant API (JSON-RPC webhook)' })
