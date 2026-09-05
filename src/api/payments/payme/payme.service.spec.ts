@@ -161,12 +161,10 @@ describe('PaymeService', () => {
       PAYME_CHECKOUT_URL: 'https://test.paycom.uz',
       PAYME_ACCOUNT_FIELD: 'order_id',
       PAYME_RETURN_URL: 'https://ocomarket.uz/orders',
-      PAYME_DEFAULT_IKPU_CODE: '00702001001000000',
-      PAYME_DEFAULT_PACKAGE_CODE: '1508957',
-      PAYME_DEFAULT_VAT_PERCENT: '12',
-      PAYME_DEFAULT_UNITS: '241092',
     };
-    // 1500 so'mlik buyurtma: 750 so'mdan 2 dona
+    // 1500 so'mlik buyurtma: 750 so'mdan 2 dona.
+    // Fiskal maydonlar normal holatda KATEGORIYADA turadi - mahsulotniki
+    // faqat bir kategoriyadagi istisnolar uchun.
     orderItems = [
       {
         product_id: PRODUCT_ID,
@@ -180,6 +178,12 @@ describe('PaymeService', () => {
           package_code: null,
           vat_percent: null,
           units: null,
+          category: {
+            ikpu_code: '00702001001000000',
+            package_code: '1508957',
+            vat_percent: 12,
+            units: 241092,
+          },
         },
       },
     ];
@@ -302,7 +306,7 @@ describe('PaymeService', () => {
       expect(total).toBe(AMOUNT);
     });
 
-    it('mahsulotdagi fiskal maydonlar zaxiradan ustun turadi', async () => {
+    it('mahsulotdagi fiskal maydonlar kategoriyanikidan ustun turadi', async () => {
       orderItems[0].product.ikpu_code = '08471001001000000';
       orderItems[0].product.package_code = '1501886';
       orderItems[0].product.vat_percent = 0;
@@ -324,8 +328,8 @@ describe('PaymeService', () => {
     it('sozlanmagan units va package_code umuman yuborilmaydi', async () => {
       // `units: 0` yoki `package_code: ""` mavjud bo'lmagan kodlar - Payme
       // ularni rad etadi, shuning uchun maydonning o'zi bo'lmasligi kerak
-      delete env.PAYME_DEFAULT_UNITS;
-      delete env.PAYME_DEFAULT_PACKAGE_CODE;
+      orderItems[0].product.category.units = null;
+      orderItems[0].product.category.package_code = null;
 
       const result: any = await call('CheckPerformTransaction', {
         account,
@@ -340,9 +344,42 @@ describe('PaymeService', () => {
       expect(item.vat_percent).toBe(12);
     });
 
+    it("kategoriyadagi vat_percent 0 bo'lsa 0 yuboriladi", async () => {
+      // `0` haqiqiy qiymat (QQS to'lovchisi emas). `||` bilan olsak u
+      // "bo'sh" deb hisoblanib, zaxiraga tushib ketardi.
+      orderItems[0].product.category.vat_percent = 0;
+
+      const result: any = await call('CheckPerformTransaction', {
+        account,
+        amount: AMOUNT,
+      });
+
+      expect(result.detail.items[0].vat_percent).toBe(0);
+    });
+
     it("IKPU hech qayerda sozlanmagan bo'lsa -31008 qaytaradi", async () => {
       // Bo'sh `code` bilan yuborsak Payme chekni to'lov paytida rad etardi
-      delete env.PAYME_DEFAULT_IKPU_CODE;
+      orderItems[0].product.category.ikpu_code = null;
+
+      await expectPaymeError(
+        call('CheckPerformTransaction', { account, amount: AMOUNT }),
+        PaymeErrorCode.CANNOT_PERFORM,
+      );
+    });
+
+    it("vat_percent hech qayerda sozlanmagan bo'lsa -31008 qaytaradi", async () => {
+      // Payme uchun majburiy maydon. Ilgari `.env` zaxirasi bor edi va u
+      // sozlanmasa jimgina `0` ketardi - ya'ni noto'g'ri soliq ma'lumoti.
+      orderItems[0].product.category.vat_percent = null;
+
+      await expectPaymeError(
+        call('CheckPerformTransaction', { account, amount: AMOUNT }),
+        PaymeErrorCode.CANNOT_PERFORM,
+      );
+    });
+
+    it("kategoriyasi yo'q mahsulot uchun ham -31008 qaytaradi", async () => {
+      orderItems[0].product.category = null;
 
       await expectPaymeError(
         call('CheckPerformTransaction', { account, amount: AMOUNT }),

@@ -6,6 +6,14 @@
  * etiladi - ya'ni xato TO'LOV PAYTIDA, mijozning ko'z o'ngida chiqadi. Bu
  * skript o'sha bo'shliqni oldindan ko'rsatadi.
  *
+ * Qiymatlar qayerdan olinadi (shu tartibda):
+ *   1. Product.ikpu_code / vat_percent / ...   - istisnolar uchun
+ *   2. Category.ikpu_code / vat_percent / ...  - ASOSIY joyi
+ *   3. hech qayerda yo'q -> to'lov -31008 bilan to'xtaydi
+ *
+ * `.env` dagi PAYME_DEFAULT_* zaxirasi OLIB TASHLANGAN: bitta kod butun
+ * katalogga qo'llanardi, ya'ni stabilizator ham nasos deb fiskallashardi.
+ *
  * Ishlatish:
  *   npm run db:check:ikpu              # yetishmayotganlarni ko'rsatadi
  *   npm run db:check:ikpu -- --all     # barcha mahsulotlarni ro'yxatlaydi
@@ -13,32 +21,29 @@
  * Kodlarni qanday to'ldirish - `prisma/catalog/IKPU.md`.
  */
 import { PrismaClient } from '@prisma/client';
-import * as dotenv from 'dotenv';
-
-// `.env` ni o'zimiz yuklaymiz: bu skript Nest konteynerisiz ishlaydi, ya'ni
-// `ConfigModule` PAYME_DEFAULT_* larni o'qib bermaydi.
-dotenv.config();
 
 const prisma = new PrismaClient();
 
 const SHOW_ALL = process.argv.includes('--all');
 
-/** `.env` dagi zaxira qiymatlar - mahsulotda bo'sh bo'lsa shular ketadi. */
-const DEFAULTS = {
-  ikpuCode: process.env.PAYME_DEFAULT_IKPU_CODE?.trim() ?? '',
-  packageCode: process.env.PAYME_DEFAULT_PACKAGE_CODE?.trim() ?? '',
-  vatPercent: process.env.PAYME_DEFAULT_VAT_PERCENT?.trim() ?? '',
-  units: process.env.PAYME_DEFAULT_UNITS?.trim() ?? '',
-};
-
-function label(value: string | null | undefined): string {
-  return value && value.trim() ? value.trim() : '—';
+function label(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  const text = String(value).trim();
+  return text || '—';
 }
 
 async function main() {
   const categories = await prisma.category.findMany({
     orderBy: { sort_order: 'asc' },
-    select: { id: true, name_uz: true, name_ru: true },
+    select: {
+      id: true,
+      name_uz: true,
+      name_ru: true,
+      ikpu_code: true,
+      package_code: true,
+      vat_percent: true,
+      units: true,
+    },
   });
 
   const products = await prisma.product.findMany({
@@ -64,17 +69,13 @@ async function main() {
 
   console.log('Fiskal maydonlar (IKPU) holati\n');
 
-  let missingIkpu = 0;
-  let missingVat = 0;
+  let blockedProducts = 0;
+  let categoriesMissingIkpu = 0;
+  let categoriesMissingVat = 0;
 
   for (const category of categories) {
     const items = products.filter((p) => p.category_id === category.id);
     if (items.length === 0) continue;
-
-    // Butun kategoriya bir xil kod bilan to'ldirilgan bo'lsa - bitta qator
-    // yetarli, uzun ro'yxat faqat chalkashlik qo'shadi.
-    const codes = new Set(items.map((i) => label(i.ikpu_code)));
-    const uniform = codes.size === 1 && !codes.has('—');
 
     // Eski (backfill qilinmagan) yozuvlarda til ustunlari bo'sh bo'lishi
     // mumkin - unda hech bo'lmasa id ko'rinsin, bo'sh sarlavha emas.
@@ -83,28 +84,50 @@ async function main() {
         .filter((n) => n?.trim())
         .join(' / ') || category.id;
 
+    const catIkpu = category.ikpu_code?.trim() ?? '';
+    const catVat = category.vat_percent;
+
+    if (!catIkpu) categoriesMissingIkpu++;
+    if (catVat === null) categoriesMissingVat++;
+
+    const catOk = catIkpu && catVat !== null;
+
     console.log(
-      `${title} — ${items.length} ta` +
-        (uniform ? `  ✅ IKPU: ${[...codes][0]}` : ''),
+      `${catOk ? '✅' : '⚠️ '} ${title} — ${items.length} ta mahsulot`,
+    );
+    console.log(
+      `     kategoriya:  ikpu=${label(catIkpu)}` +
+        `  package=${label(category.package_code)}` +
+        `  vat=${label(catVat)}` +
+        `  units=${label(category.units)}`,
     );
 
+    // Kategoriya to'liq bo'lsa mahsulotlarni sanab o'tirish shart emas -
+    // ularning hammasi shu qiymatlarni oladi.
     for (const item of items) {
-      const noIkpu = !item.ikpu_code?.trim();
-      const noVat = item.vat_percent === null;
+      const ikpu = item.ikpu_code?.trim() || catIkpu;
+      const vat = item.vat_percent ?? catVat;
+      const blocked = !ikpu || vat === null;
 
-      if (noIkpu) missingIkpu++;
-      if (noVat) missingVat++;
+      if (blocked) blockedProducts++;
 
-      if (uniform && !SHOW_ALL && !noVat) continue;
-      if (!SHOW_ALL && !noIkpu && !noVat) continue;
+      // Mahsulotning o'zida qiymat bo'lsa - bu istisno, uni ko'rsatamiz.
+      const overrides =
+        item.ikpu_code?.trim() ||
+        item.package_code?.trim() ||
+        item.vat_percent !== null ||
+        item.units !== null;
 
-      const mark = noIkpu || noVat ? '  ⚠️ ' : '  • ';
+      if (!SHOW_ALL && !blocked && !overrides) continue;
+
+      const mark = blocked ? '  ⛔️ ' : overrides ? '  ↳  ' : '  •  ';
       console.log(
         `${mark}${item.sku ?? item.name_uz}` +
           `  ikpu=${label(item.ikpu_code)}` +
           `  package=${label(item.package_code)}` +
-          `  vat=${item.vat_percent ?? '—'}` +
-          `  units=${item.units ?? '—'}`,
+          `  vat=${label(item.vat_percent)}` +
+          `  units=${label(item.units)}` +
+          (blocked ? "   <- to'lov ishlamaydi" : ''),
       );
     }
 
@@ -112,37 +135,26 @@ async function main() {
   }
 
   console.log('Natija:');
-  console.log(`  mahsulot          : ${products.length}`);
-  console.log(`  IKPU yo'q         : ${missingIkpu}`);
-  console.log(`  QQS stavkasi yo'q : ${missingVat}`);
+  console.log(`  mahsulot                     : ${products.length}`);
+  console.log(`  IKPU'siz kategoriya          : ${categoriesMissingIkpu}`);
+  console.log(`  QQS stavkasisiz kategoriya   : ${categoriesMissingVat}`);
+  console.log(`  to'lab bo'lmaydigan mahsulot : ${blockedProducts}`);
   console.log('');
 
-  console.log('`.env` zaxirasi:');
-  console.log(`  PAYME_DEFAULT_IKPU_CODE    = ${label(DEFAULTS.ikpuCode)}`);
-  console.log(`  PAYME_DEFAULT_PACKAGE_CODE = ${label(DEFAULTS.packageCode)}`);
-  console.log(`  PAYME_DEFAULT_VAT_PERCENT  = ${label(DEFAULTS.vatPercent)}`);
-  console.log(`  PAYME_DEFAULT_UNITS        = ${label(DEFAULTS.units)}`);
-  console.log('');
-
-  if (missingIkpu > 0 && !DEFAULTS.ikpuCode) {
+  if (blockedProducts > 0) {
     console.error(
-      `❌ ${missingIkpu} ta mahsulotda IKPU yo'q va \`.env\` zaxirasi ham ` +
-        "bo'sh - bu mahsulotlarni to'lay olmaysiz (-31008).",
+      `❌ ${blockedProducts} ta mahsulotni to'lay olmaysiz (-31008): na ` +
+        "mahsulotda, na uning kategoriyasida IKPU yoki QQS stavkasi bor.",
     );
-    console.error("   Qanday to'ldirish: prisma/catalog/IKPU.md");
+    console.error(
+      "   Yechim: kategoriyani to'ldiring - ichidagi hamma mahsulot shuni oladi.",
+    );
+    console.error("   Qo'llanma: prisma/catalog/IKPU.md");
     process.exitCode = 1;
     return;
   }
 
-  if (missingIkpu > 0) {
-    console.log(
-      `⚠️ ${missingIkpu} ta mahsulotda IKPU yo'q - ular \`.env\` dagi zaxira ` +
-        "kodi bilan ketadi. Chek to'g'ri bo'lishi uchun aniq kod qo'ying.",
-    );
-    return;
-  }
-
-  console.log('✅ Barcha mahsulotlarda IKPU kodi bor.');
+  console.log("✅ Har bir mahsulot uchun IKPU va QQS stavkasi topiladi.");
 }
 
 main()

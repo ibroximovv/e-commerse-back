@@ -37,15 +37,30 @@ export interface PaymeReceiptDetail {
   items: PaymeReceiptItem[];
 }
 
-/** Mahsulotdan chek qatori uchun kerak bo'ladigan minimal ma'lumot. */
-export interface ReceiptProduct {
-  name_uz: string;
-  name_ru: string;
-  name_en: string;
+/**
+ * Fiskal maydonlar to'plami. Mahsulotda ham, kategoriyada ham bir xil.
+ */
+export interface ReceiptFiscalFields {
   ikpu_code: string | null;
   package_code: string | null;
   vat_percent: number | null;
   units: number | null;
+}
+
+/** Mahsulotdan chek qatori uchun kerak bo'ladigan minimal ma'lumot. */
+export interface ReceiptProduct extends ReceiptFiscalFields {
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+  /**
+   * Mahsulotdagi maydon bo'sh bo'lsa shu yerdan olinadi.
+   *
+   * IKPU tovar guruhiga beriladi, shuning uchun normal holatda faqat
+   * kategoriya to'ldiriladi; mahsulot darajasi bir kategoriyada turli
+   * guruhdagi tovarlar bo'lganda (payvandlash apparati va elektrodvigatel)
+   * kerak bo'ladi.
+   */
+  category: ReceiptFiscalFields | null;
 }
 
 export interface ReceiptLine {
@@ -55,12 +70,27 @@ export interface ReceiptLine {
   unit_price: number;
 }
 
-/** `.env` dan keladigan zaxira qiymatlar. */
-export interface ReceiptDefaults {
-  ikpuCode: string;
-  packageCode: string;
-  vatPercent: number;
-  units: number;
+/** Mahsulot -> kategoriya tartibida birinchi to'ldirilgan matnni oladi. */
+function resolveText(
+  product: ReceiptFiscalFields,
+  category: ReceiptFiscalFields | null,
+  field: 'ikpu_code' | 'package_code',
+): string {
+  return product[field]?.trim() || category?.[field]?.trim() || '';
+}
+
+/**
+ * Mahsulot -> kategoriya tartibida birinchi berilgan sonni oladi.
+ *
+ * `??` ataylab: `vat_percent: 0` haqiqiy qiymat (QQS to'lovchisi emas), uni
+ * `||` bilan olsak kategoriyaga tushib ketardi.
+ */
+function resolveNumber(
+  product: ReceiptFiscalFields,
+  category: ReceiptFiscalFields | null,
+  field: 'vat_percent' | 'units',
+): number | null {
+  return product[field] ?? category?.[field] ?? null;
 }
 
 /**
@@ -71,39 +101,44 @@ export interface ReceiptDefaults {
  */
 export function buildReceiptDetail(
   lines: ReceiptLine[],
-  defaults: ReceiptDefaults,
   lang: Lang,
 ): PaymeReceiptDetail {
   return {
     receipt_type: 0,
     items: lines.map((line) => {
+      const { product } = line;
+      const { category } = product;
+
       const title =
         pickLocalized(
           {
-            uz: line.product.name_uz,
-            ru: line.product.name_ru,
-            en: line.product.name_en,
+            uz: product.name_uz,
+            ru: product.name_ru,
+            en: product.name_en,
           },
           lang,
         ) ?? '';
 
-      const code = line.product.ikpu_code?.trim() || defaults.ikpuCode;
-      if (!code) {
-        // Bo'sh IKPU bilan yuborsak Payme chekni to'lov paytida rad etardi va
-        // sabab noaniq bo'lardi. Aniq xato bilan darrov to'xtaymiz.
-        throw new MissingIkpuError(title);
+      // `code` va `vat_percent` - Payme uchun MAJBURIY. Bo'sh yuborsak chek
+      // to'lov paytida rad etilardi va sabab noaniq bo'lardi, shuning uchun
+      // aniq xato bilan darrov to'xtaymiz.
+      const code = resolveText(product, category, 'ikpu_code');
+      if (!code) throw new MissingFiscalDataError(title, 'ikpu_code');
+
+      const vatPercent = resolveNumber(product, category, 'vat_percent');
+      if (vatPercent === null) {
+        throw new MissingFiscalDataError(title, 'vat_percent');
       }
 
-      const packageCode =
-        line.product.package_code?.trim() || defaults.packageCode;
-      const units = line.product.units ?? defaults.units;
+      const packageCode = resolveText(product, category, 'package_code');
+      const units = resolveNumber(product, category, 'units');
 
       return {
         title,
         price: toTiyin(line.unit_price),
         count: line.quantity,
         code,
-        vat_percent: line.product.vat_percent ?? defaults.vatPercent,
+        vat_percent: vatPercent,
         // Sozlanmagan ixtiyoriy maydonlarni umuman yubormaymiz:
         // `package_code: ""` yoki `units: 0` - mavjud bo'lmagan kodlar
         ...(packageCode ? { package_code: packageCode } : {}),
@@ -116,14 +151,18 @@ export function buildReceiptDetail(
   };
 }
 
-/** Mahsulotda ham, `.env` da ham IKPU topilmadi. */
-export class MissingIkpuError extends Error {
-  constructor(readonly productTitle: string) {
+/** Mahsulotda ham, uning kategoriyasida ham majburiy maydon topilmadi. */
+export class MissingFiscalDataError extends Error {
+  constructor(
+    readonly productTitle: string,
+    readonly field: 'ikpu_code' | 'vat_percent',
+  ) {
     super(
-      `"${productTitle}" uchun IKPU kodi topilmadi. Mahsulotga ikpu_code ` +
-        "qo'ying yoki PAYME_DEFAULT_IKPU_CODE ni sozlang.",
+      `"${productTitle}" uchun ${field} topilmadi. Mahsulotning KATEGORIYASIGA ` +
+        `${field} qo'ying (bir kategoriyadagi hamma mahsulot uni oladi), ` +
+        "yoki shu mahsulotning o'ziga alohida qiymat bering.",
     );
-    this.name = 'MissingIkpuError';
+    this.name = 'MissingFiscalDataError';
   }
 }
 

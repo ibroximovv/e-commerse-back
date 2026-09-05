@@ -226,6 +226,10 @@ async function main() {
       name_ru: 'Selftest',
       name_en: 'Selftest',
       slug: `${MARKER}-category`,
+      // Chek qurilishi uchun IKPU va QQS shart, va ular KATEGORIYADA turadi.
+      // Bu yerda soxta kod - haqiqiy katalog qamrovini `db:check:ikpu` ko'radi.
+      ikpu_code: '00000000000000000',
+      vat_percent: 12,
     },
   });
 
@@ -240,10 +244,7 @@ async function main() {
       final_price: UNIT_PRICE,
       stock: START_STOCK,
       category_id: category.id,
-      // Chek qurilishi uchun IKPU shart. Bu yerda soxta kod - haqiqiy
-      // mahsulotlar qamrovini `npm run db:check:ikpu` tekshiradi.
-      ikpu_code: process.env.PAYME_DEFAULT_IKPU_CODE || '00000000000000000',
-      vat_percent: Number(process.env.PAYME_DEFAULT_VAT_PERCENT ?? 12),
+      // Fiskal maydonlar ataylab bo'sh: kategoriyadan olinishi ham sinaladi.
     },
   });
 

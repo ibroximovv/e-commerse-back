@@ -20,12 +20,12 @@ import {
   PAYME_TIMEOUT_CANCEL_REASON,
   PAYME_TRANSACTION_TIMEOUT_MS,
   PaymeMethod,
+  buildPaymeCheckoutUrl,
   toSom,
   toTiyin,
 } from './payme.constants';
 import {
-  MissingIkpuError,
-  ReceiptDefaults,
+  MissingFiscalDataError,
   buildReceiptDetail,
   receiptTotal,
 } from './payme.receipt';
@@ -65,11 +65,10 @@ export class PaymeService implements OnModuleInit {
    * Aks holda yetishmayotgan kalit yoki IKPU faqat haqiqiy mijoz to'lov
    * qilmoqchi bo'lganda bilinardi - ya'ni eng yomon paytda.
    */
-  onModuleInit() {
+  async onModuleInit() {
     const missing = [
       ['PAYME_MERCHANT_ID', this.merchantId],
       ['PAYME_KEY', this.config.get<string>('PAYME_KEY')],
-      ['PAYME_DEFAULT_IKPU_CODE', this.receiptDefaults.ikpuCode],
     ].filter(([, value]) => !value);
 
     if (missing.length) {
@@ -78,6 +77,8 @@ export class PaymeService implements OnModuleInit {
           "To'lov ishlamaydi.",
       );
     }
+
+    await this.warnAboutMissingFiscalData();
 
     if (this.checkoutUrl.includes('test.paycom.uz')) {
       this.logger.warn(
@@ -115,18 +116,33 @@ export class PaymeService implements OnModuleInit {
   }
 
   /**
-   * Mahsulotda fiskalizatsiya maydonlari to'ldirilmagan bo'lsa ishlatiladigan
-   * zaxira qiymatlar. Ular soliq organidan olinadi va `.env` da saqlanadi.
+   * Fiskal maydonlari to'ldirilmagan kategoriyalar haqida bootda ogohlantiradi.
+   *
+   * Ilgari bu tekshiruv `.env` dagi PAYME_DEFAULT_IKPU_CODE ustida edi. Endi
+   * ma'lumot bazada, shuning uchun tekshiruv ham bazada. Xato yutiladi: baza
+   * hali ko'tarilmagan bo'lsa ilova shu sababdan qulamasligi kerak.
    */
-  private get receiptDefaults(): ReceiptDefaults {
-    return {
-      ikpuCode: this.config.get<string>('PAYME_DEFAULT_IKPU_CODE') ?? '',
-      packageCode: this.config.get<string>('PAYME_DEFAULT_PACKAGE_CODE') ?? '',
-      vatPercent: Number(
-        this.config.get<string>('PAYME_DEFAULT_VAT_PERCENT') ?? 0,
-      ),
-      units: Number(this.config.get<string>('PAYME_DEFAULT_UNITS') ?? 0),
-    };
+  private async warnAboutMissingFiscalData() {
+    try {
+      const gaps = await this.prisma.category.findMany({
+        where: {
+          is_archived: false,
+          OR: [{ ikpu_code: null }, { ikpu_code: '' }, { vat_percent: null }],
+        },
+        select: { name_ru: true, slug: true },
+      });
+
+      if (gaps.length) {
+        this.logger.warn(
+          `Fiskal ma'lumotsiz kategoriya: ${gaps
+            .map((c) => c.name_ru || c.slug)
+            .join(', ')}. Ulardagi mahsulotlar uchun to'lov -31008 bilan ` +
+            "to'xtaydi. Tekshirish: npm run db:check:ikpu",
+        );
+      }
+    } catch {
+      // Baza yo'q/tayyor emas - bu tekshiruv ilovani ushlab turmasligi kerak.
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -227,7 +243,7 @@ export class PaymeService implements OnModuleInit {
         normalizeLanguage(order.user?.language),
       );
     } catch (error) {
-      if (error instanceof MissingIkpuError) {
+      if (error instanceof MissingFiscalDataError) {
         // Bu bizning konfiguratsiya xatomiz, mijozning aybi emas - lekin
         // Payme'ga protokol xatosidan boshqa narsa qaytara olmaymiz
         this.logger.error(error.message);
@@ -264,6 +280,17 @@ export class PaymeService implements OnModuleInit {
             package_code: true,
             vat_percent: true,
             units: true,
+            // Odatda fiskal maydonlar SHU YERDA to'ldirilgan bo'ladi:
+            // IKPU tovar guruhiga beriladi, mahsulotdagi qiymat esa faqat
+            // kategoriya ichidagi istisnolar uchun.
+            category: {
+              select: {
+                ikpu_code: true,
+                package_code: true,
+                vat_percent: true,
+                units: true,
+              },
+            },
           },
         },
       },
@@ -275,7 +302,6 @@ export class PaymeService implements OnModuleInit {
         quantity: item.quantity,
         unit_price: item.price_at_purchase,
       })),
-      this.receiptDefaults,
       lang,
     );
   }
@@ -570,18 +596,15 @@ export class PaymeService implements OnModuleInit {
     amountInSom: number,
     lang: Lang = DEFAULT_LANGUAGE,
   ): string {
-    const parts = [
-      `m=${this.merchantId}`,
-      `ac.${this.accountField}=${orderId}`,
-      `a=${toTiyin(amountInSom)}`,
-      `l=${lang}`,
-      'cr=UZS',
-    ];
-
-    if (this.returnUrl) parts.push(`c=${this.returnUrl}`);
-
-    const encoded = Buffer.from(parts.join(';'), 'utf-8').toString('base64');
-    return `${this.checkoutUrl.replace(/\/+$/, '')}/${encoded}`;
+    return buildPaymeCheckoutUrl({
+      merchantId: this.merchantId,
+      accountField: this.accountField,
+      orderId,
+      amountInSom,
+      lang,
+      checkoutUrl: this.checkoutUrl,
+      returnUrl: this.returnUrl,
+    });
   }
 
   // ---------------------------------------------------------------------------

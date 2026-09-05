@@ -187,8 +187,10 @@ export class CreateProductDto {
     example: '08471001001000000',
     description:
       'MXIK / IKPU - soliq organidagi tovar klassifikatori kodi. Payme ' +
-      "chekni shu kod bilan fiskallashtiradi. Bo'sh qolsa `.env` dagi " +
-      '`PAYME_DEFAULT_IKPU_CODE` ishlatiladi.',
+      "chekni shu kod bilan fiskallashtiradi. Odatda BO'SH qoldiriladi: kod " +
+      'KATEGORIYADA turadi va shu yerga tushadi. Bu maydon faqat istisno ' +
+      "uchun - bir kategoriyada boshqa tovar guruhi bo'lsa (masalan " +
+      "'Asboblar' da elektrodvigatel).",
   })
   @IsString()
   @IsOptional()
@@ -196,7 +198,7 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({
     example: '1501886',
-    description: "Qadoqlash kodi. Bo'sh qolsa `PAYME_DEFAULT_PACKAGE_CODE`.",
+    description: "Qadoqlash kodi. Bo'sh qolsa kategoriyanikini oladi.",
   })
   @IsString()
   @IsOptional()
@@ -205,7 +207,7 @@ export class CreateProductDto {
   @ApiPropertyOptional({
     example: 12,
     description:
-      "QQS stavkasi foizda (0 yoki 12). Bo'sh qolsa `.env` dagi qiymat.",
+      "QQS stavkasi foizda (0 yoki 12). Bo'sh qolsa kategoriyanikini oladi.",
   })
   @ToNumber()
   @IsInt()
@@ -218,7 +220,7 @@ export class CreateProductDto {
     example: 241092,
     description:
       "O'lchov birligi klassifikatori kodi (dona uchun 241092). " +
-      "Bo'sh qolsa `PAYME_DEFAULT_UNITS`.",
+      "Bo'sh qolsa kategoriyanikini oladi.",
   })
   @ToNumber()
   @IsInt()

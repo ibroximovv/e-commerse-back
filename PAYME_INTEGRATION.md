@@ -170,16 +170,25 @@ qaytaradi — pul yechilgandan keyin xato chiqargandan ko'ra shunisi yaxshi.
 
 ### Loyihada qanday saqlanadi
 
-Ikki daraja bor:
+IKPU tovar **guruhiga** beriladi, alohida modelga emas — shuning uchun uning
+asosiy joyi `Category`:
 
-1. **Har bir mahsulotda** (aniqroq, tavsiya etiladi) — `Product` modelidagi
-   `ikpu_code`, `package_code`, `vat_percent`, `units` maydonlari. Admin panel
-   orqali kiritiladi.
-2. **`.env` dagi zaxira** — mahsulotda bo'sh bo'lsa ishlatiladi
-   (`PAYME_DEFAULT_*`).
+1. **Kategoriyada** (asosiy) — `Category.ikpu_code`, `package_code`,
+   `vat_percent`, `units`. Bitta kategoriyani to'ldirsangiz ichidagi hamma
+   mahsulot shuni oladi: 8 ta qator = 54 ta mahsulot.
+2. **Mahsulotda** (istisno) — `Product` da xuddi shu 4 maydon, kategoriyanikini
+   **qoplaydi**. Kerak bo'ladi, chunki «Инструменты» kategoriyasida ikkita
+   butunlay boshqa guruh bor: payvandlash apparati va elektrodvigatel.
 
-Amaliy yondashuv: `.env` ga o'zingizning asosiy tovar guruhingiz kodini yozing,
-keyin vaqt topilganda har bir mahsulotga aniq kodini qo'ying.
+```
+Product.ikpu_code  bor  →  o'shani ishlatadi
+                   yo'q →  Category.ikpu_code
+                           yo'q → -31008, to'lov to'xtaydi
+```
+
+> `.env` dagi eski `PAYME_DEFAULT_*` zaxirasi **olib tashlangan**: u bitta
+> kodni butun katalogga qo'llardi, ya'ni stabilizator ham nasos deb
+> fiskallashardi. Endi bo'shliq jimgina noto'g'ri chek emas, aniq xato beradi.
 
 **To'ldirish varaqasi:** [prisma/catalog/IKPU.md](prisma/catalog/IKPU.md) — 8
 kategoriyaning har biri uchun `tasnif.soliq.uz` da nima qidirish kerakligi va
@@ -231,18 +240,16 @@ PAYME_ACCOUNT_FIELD="order_id"
 # To'lovdan keyin mijoz qaytariladigan sahifa (frontend, backend emas)
 PAYME_RETURN_URL="https://ocomarket.uz/orders"
 
-# --- Fiskalizatsiya (zaxira qiymatlar) -------------------------------------
-PAYME_DEFAULT_IKPU_CODE="00702001001000000"
-PAYME_DEFAULT_PACKAGE_CODE="1508957"
-PAYME_DEFAULT_VAT_PERCENT=12
-PAYME_DEFAULT_UNITS=241092
+# Fiskalizatsiya uchun `.env` da HECH NARSA yo'q - qiymatlar bazada,
+# Category (asosiy) va Product (istisno) modellarida.
 ```
 
 **Server ishga tushganda o'zi tekshiradi.** Agar biror narsa yetishmasa,
 loglarda ogohlantirish chiqadi:
 
 ```
-[PaymeService] Payme to'liq sozlanmagan: PAYME_KEY, PAYME_DEFAULT_IKPU_CODE. To'lov ishlamaydi.
+[PaymeService] Payme to'liq sozlanmagan: PAYME_KEY. To'lov ishlamaydi.
+[PaymeService] Fiskal ma'lumotsiz kategoriya: Инструменты. Ulardagi mahsulotlar uchun to'lov -31008 bilan to'xtaydi. Tekshirish: npm run db:check:ikpu
 [PaymeService] Payme TEST kassasi ishlatilmoqda (test.paycom.uz) - haqiqiy pul o'tmaydi.
 ```
 
@@ -671,7 +678,7 @@ Prod'ga chiqishdan oldin:
 | `-32504` doim keladi | Kalit noto'g'ri yoki test/prod kaliti almashib ketgan | Kabinetdan kalitni qayta oling |
 | Lokalda `-32504`, log'da "PAYME_KEY sozlanmagan" | `.env` ga kalit qo'shilgan, lekin **eski server jarayoni** portni band qilib turibdi — yangisi `EADDRINUSE` bilan ko'tarilmagan | `lsof -ti :3000 \| xargs -r kill` → `npm run start:dev`. `.env` faqat **ishga tushishda** o'qiladi |
 | `-31001` doim keladi | Chek qatorlari yig'indisi buyurtma summasiga teng emas | Loglarni qarang: aniq raqamlar yoziladi |
-| `-31008` "fiscal data is not configured" | IKPU hech qayerda yo'q | `PAYME_DEFAULT_IKPU_CODE` ni to'ldiring |
+| `-31008` "fiscal data is not configured" | Na mahsulotda, na uning kategoriyasida IKPU / QQS stavkasi bor | `npm run db:check:ikpu` → kategoriyaga `ikpu_code` va `vat_percent` qo'ying |
 | Payme umuman so'rov yubormayapti | Server internetdan ochiq emas yoki HTTPS yo'q | ngrok / domen + sertifikat |
 | To'lov o'tdi, buyurtma `PENDING` | `PerformTransaction` da baza xatosi | Loglarni qarang; MongoDB replica set rejimidami? |
 | `Transactions are not supported by standalone servers` | MongoDB replica set emas | Mongo'ni replica set qilib ishga tushiring (Atlas'da avtomatik) |

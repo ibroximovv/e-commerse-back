@@ -4,7 +4,7 @@ Payme har bir to'lov uchun soliq organiga **fiskal chek** yuboradi va tovar
 ma'lumotlarini bizdan so'raydi. Kod bo'lmasa to'lov `-31008` bilan rad etiladi
 (pul yechilishidan **oldin** — bu ataylab shunday).
 
-Har bir mahsulot uchun 4 ta qiymat kerak:
+4 ta qiymat kerak:
 
 | Maydon | Nima | Misol | Majburiymi |
 | :-- | :-- | :-- | :-- |
@@ -12,6 +12,22 @@ Har bir mahsulot uchun 4 ta qiymat kerak:
 | `vat_percent` | QQS stavkasi foizda | `12` yoki `0` | ✅ ha (0 ham qiymat) |
 | `package_code` | Qadoqlash / birlik kodi | `1508957` | ❌ bo'sh bo'lsa yuborilmaydi |
 | `units` | O'lchov birligi kodi (dona = `241092`) | `241092` | ❌ bo'sh bo'lsa yuborilmaydi |
+
+## Qiymatlar KATEGORIYADA turadi
+
+IKPU tovar **guruhiga** beriladi, alohida modelga emas. Shuning uchun kodni
+kategoriyaga yozasiz va **ichidagi hamma mahsulot** shuni oladi — 54 ta
+mahsulot o'rniga 8 ta qator to'ldiriladi.
+
+```
+Product.ikpu_code   bor  →  o'shani ishlatadi   (faqat ISTISNO uchun)
+                    yo'q →  Category.ikpu_code
+                            yo'q → to'lov -31008 bilan to'xtaydi
+```
+
+> `.env` dagi eski `PAYME_DEFAULT_*` zaxirasi **olib tashlangan**. U bitta
+> kodni butun katalogga qo'llardi, ya'ni stabilizator ham, payvandlash
+> apparati ham «nasos» deb fiskallashardi.
 
 ---
 
@@ -34,6 +50,29 @@ Har bir mahsulot uchun 4 ta qiymat kerak:
 >
 > ⚠️ Yakuniy kodlarni **buxgalter yoki soliq maslahatchisi tasdiqlasin**.
 > Noto'g'ri MXIK — soliq jarimasi. Payme menejeri ham odatda maslahat beradi.
+
+---
+
+## 1.5. Nechta kod kerak?
+
+Kategoriyalaringiz 8 ta, lekin **alohida kod 8 ta emas** — tovar guruhlari
+bo'yicha taxminan **5–6 ta**:
+
+| Guruh | Kategoriya | Mahsulot | Izoh |
+| :-- | :-- | :-- | :-- |
+| A | 1, 2, 3, 5 — nasoslar | 40 ta | Hammasi suv nasosi. Klassifikator ularni ajratsa, A ikkiga bo'linadi. |
+| B | 4 — regulyatorlar | 1 ta | |
+| C | 6 — kengaytirish baklari | 7 ta | |
+| D+E | 7 — asboblar | 4 ta | ⚠️ **Ikkita kod kerak**: payvandlash apparati va elektrodvigatel |
+| F | 8 — stabilizatorlar | 2 ta | |
+
+Bir xil guruhdagi kategoriyalarga **bir xil kodni yozib qo'yaverasiz** —
+takrorlanishi normal.
+
+**7-kategoriya istisno:** «Инструменты» ichida ikkita boshqa guruh bor.
+Kategoriyaga payvandlash apparati kodini yozing, `YL90-L-2` va `YL90L-4`
+mahsulotlariga esa alohida elektrodvigatel kodini bering — mahsulotdagi qiymat
+kategoriyanikini qoplaydi.
 
 ---
 
@@ -137,19 +176,12 @@ SKU: `DNB-1000-VA`, `DNB-2000-VA`
 
 ## 3. Kodlarni loyihaga kiritish
 
-Ikki daraja bor: **mahsulotdagi qiymat** ustunroq, u bo'sh bo'lsa `.env` dagi
-`PAYME_DEFAULT_*` ishlatiladi.
+### Variant A — admin panel (tavsiya etiladi)
 
-### Variant A — ommaviy (tavsiya etiladi)
-
-`prisma/catalog/products.json` dagi har bir mahsulotga 4 ta maydon qo'shing:
+`PATCH /api/categories/:id` — 8 ta so'rov va tugadi:
 
 ```jsonc
 {
-  "catalog_no": 1,
-  "sku": "1WZB-250",
-  "category": "avtomaticheskie-nasosy",
-  // ...
   "ikpu_code": "00702001001000000",
   "package_code": "1508957",
   "vat_percent": 12,
@@ -157,31 +189,38 @@ Ikki daraja bor: **mahsulotdagi qiymat** ustunroq, u bo'sh bo'lsa `.env` dagi
 }
 ```
 
-Keyin:
+7-kategoriyadagi elektrodvigatellar uchun qo'shimcha 2 ta so'rov
+`PATCH /api/products/:id` bilan — xuddi shu maydonlar Product DTO'sida ham bor
+va kategoriyanikini qoplaydi.
+
+### Variant B — `categories.json` orqali
+
+Aniq kodlarni olganingizdan keyin ularni katalog faylida ham saqlab qo'ysangiz,
+toza bazaga import qilganda avtomatik tushadi:
+
+```jsonc
+{
+  "slug": "avtomaticheskie-nasosy",
+  "name": { "uz": "...", "ru": "...", "en": "..." },
+  "sort_order": 1,
+  "ikpu_code": "00702001001000000",
+  "package_code": "1508957",
+  "vat_percent": 12,
+  "units": 241092
+}
+```
 
 ```bash
 npm run db:import:catalog -- --dry-run   # avval rejani ko'ring
 npm run db:import:catalog                # bazaga yozing
 ```
 
-Import `sku` bo'yicha idempotent — narx, stok, `is_top` va sotuv statistikasiga
-tegmaydi.
+> Maydon JSON'da **umuman bo'lmasa**, import bazadagi qiymatga tegmaydi —
+> admin panel orqali kiritgan kodingiz qayta importda o'chib ketmaydi.
+> Shuning uchun `categories.json` da ular hozircha yo'q.
 
-### Variant B — bittalab
-
-Admin panel orqali mahsulotni tahrirlash (`PATCH /api/products/:id`) —
-`ikpu_code`, `package_code`, `vat_percent`, `units` maydonlari DTO'da bor.
-
-### Zaxira qiymat (`.env`)
-
-Eng ko'p uchraydigan guruh kodini (nasoslar — 40+ mahsulot) `.env` ga yozing:
-
-```env
-PAYME_DEFAULT_IKPU_CODE="..."
-PAYME_DEFAULT_PACKAGE_CODE="..."
-PAYME_DEFAULT_VAT_PERCENT=12
-PAYME_DEFAULT_UNITS=241092
-```
+Import `slug`/`sku` bo'yicha idempotent — narx, stok, `is_top` va sotuv
+statistikasiga tegmaydi.
 
 ---
 
@@ -191,8 +230,14 @@ PAYME_DEFAULT_UNITS=241092
 npm run db:check:ikpu
 ```
 
-Skript bazadagi barcha faol mahsulotlarni kategoriya bo'yicha ko'rsatadi va
-qaysilarida fiskal maydon yetishmayotganini aytadi. Yakunda `.env` zaxirasi
-bo'shliqni yopadimi-yo'qmi — shuni ham xabar qiladi.
+Har bir kategoriyani fiskal qiymatlari bilan ko'rsatadi va qaysi mahsulotlarni
+**to'lab bo'lmasligini** aytadi. Mahsulot darajasidagi istisnolar `↳` bilan
+belgilanadi. Bo'shliq qolsa **non-zero exit** qaytaradi — CI'da ham ishlaydi.
+
+Kategoriyalarda IKPU yo'q bo'lsa server ham bootda ogohlantiradi:
+
+```
+[PaymeService] Fiskal ma'lumotsiz kategoriya: Инструменты, Стабилизаторы. ...
+```
 
 To'liq integratsiya hujjati: [PAYME_INTEGRATION.md](../../PAYME_INTEGRATION.md)

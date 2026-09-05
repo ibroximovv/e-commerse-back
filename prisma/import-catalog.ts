@@ -52,6 +52,13 @@ interface CategoryInput {
   icon?: string | null;
   sort_order?: number;
   is_featured?: boolean;
+  // Fiskalizatsiya: IKPU tovar guruhiga beriladi, shuning uchun asosiy joyi
+  // kategoriyada. `categories.json` da bo'sh bo'lsa bazadagi qiymat SAQLANADI -
+  // qo'lda kiritilgan kodni qayta import o'chirib yubormasligi kerak.
+  ikpu_code?: string | null;
+  package_code?: string | null;
+  vat_percent?: number | null;
+  units?: number | null;
 }
 
 interface AttributeInput {
@@ -78,7 +85,7 @@ interface ProductInput {
   attributes?: AttributeInput[];
   is_top?: boolean;
   is_featured?: boolean;
-  // Fiskalizatsiya (Payme cheki). Bo'sh qolsa `.env` dagi PAYME_DEFAULT_* ishlaydi.
+  // Fiskalizatsiya (Payme cheki). Bo'sh qolsa KATEGORIYAnikini oladi.
   ikpu_code?: string | null;
   package_code?: string | null;
   vat_percent?: number | null;
@@ -279,6 +286,17 @@ async function importCategories(inputs: CategoryInput[]) {
       sort_order: input.sort_order ?? 0,
       is_featured: input.is_featured ?? false,
       is_archived: false,
+      // Faqat JSON'da berilganini yozamiz. `?? null` qilsak, admin panel
+      // orqali kiritilgan IKPU keyingi importda o'chib ketardi - ya'ni
+      // katalogni yangilash to'lovni buzib qo'yardi.
+      ...(input.ikpu_code !== undefined ? { ikpu_code: input.ikpu_code } : {}),
+      ...(input.package_code !== undefined
+        ? { package_code: input.package_code }
+        : {}),
+      ...(input.vat_percent !== undefined
+        ? { vat_percent: input.vat_percent }
+        : {}),
+      ...(input.units !== undefined ? { units: input.units } : {}),
     };
 
     if (OPTIONS.dryRun) {

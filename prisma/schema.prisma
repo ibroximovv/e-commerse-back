@@ -55,6 +55,23 @@ model Category {
   is_archived Boolean  @default(false)
   is_featured Boolean  @default(false)
   sort_order  Int      @default(0)
+
+  // --- Fiskalizatsiya (O'zbekiston OFD) ------------------------------------
+  // IKPU tovar GURUHIGA beriladi, alohida modelga emas - shuning uchun uni
+  // kategoriyada saqlaymiz: 8 ta qator to'ldirilsa 54 ta mahsulot qamraladi.
+  // Mahsulotdagi bir nomli maydon shuni QOPLAYDI (masalan "Asboblar" ichida
+  // payvandlash apparati va elektrodvigatel butunlay boshqa guruhlar).
+  // Ilgari zaxira `.env` dagi PAYME_DEFAULT_* edi: bitta kod butun katalogga
+  // qo'llanardi, ya'ni stabilizator ham nasos deb fiskallashardi.
+  /// MXIK / IKPU - soliq organidagi tovar klassifikatori kodi (17 xonali).
+  ikpu_code    String?
+  /// Qadoqlash kodi (soliq.uz dagi tovar birligi kodi).
+  package_code String?
+  /// QQS stavkasi foizda: 0 yoki 12.
+  vat_percent  Int?
+  /// O'lchov birligi klassifikatori kodi (masalan, dona uchun 241092).
+  units        Int?
+
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
@@ -130,7 +147,9 @@ model Product {
 
   // --- Fiskalizatsiya (O'zbekiston OFD) ------------------------------------
   // Payme `CheckPerformTransaction` javobida chek qatorlarini shu maydonlardan
-  // quradi. Bo'sh qolsa PAYME_DEFAULT_* qiymatlari ishlatiladi.
+  // quradi. Bo'sh qolsa KATEGORIYAdagi bir nomli maydon ishlatiladi - odatda
+  // shu yetadi. Bu yer faqat istisnolar uchun: bir kategoriyada turli tovar
+  // guruhi bo'lsa ("Asboblar" da payvandlash apparati va elektrodvigatel).
   /// MXIK / IKPU - soliq organidagi tovar klassifikatori kodi (17 xonali).
   ikpu_code    String?
   /// Qadoqlash kodi (soliq.uz dagi tovar birligi kodi).

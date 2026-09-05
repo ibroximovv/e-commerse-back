@@ -78,3 +78,51 @@ export function toTiyin(amountInSom: number): number {
 export function toSom(amountInTiyin: number): number {
   return Math.round(amountInTiyin) / 100;
 }
+
+/** `buildPaymeCheckoutUrl` uchun kirish qiymatlari. */
+export interface PaymeCheckoutLinkParams {
+  /** Kabinetdagi kassa identifikatori (`PAYME_MERCHANT_ID`). */
+  merchantId: string;
+  /** Kabinetdagi `account` maydonining nomi, odatda `order_id`. */
+  accountField: string;
+  orderId: string;
+  /** So'mda - funksiya o'zi tiyinga o'giradi. */
+  amountInSom: number;
+  /** Kassa oynasining tili: `uz` | `ru` | `en`. */
+  lang: string;
+  /** `https://test.paycom.uz` yoki `https://checkout.paycom.uz`. */
+  checkoutUrl: string;
+  /** To'lovdan keyin qaytish sahifasi (`c=`). Bo'sh bo'lsa qo'shilmaydi. */
+  returnUrl?: string;
+}
+
+/**
+ * Payme kassasiga havola quradi.
+ *
+ * Toza funksiya - Nest DI'siz ham chaqiriladi: `scripts/payme-test-order.ts`
+ * manager uchun test buyurtmasi yaratganda aynan shu havolani chiqaradi.
+ * Agar skript formatni o'zi takrorlaganda, serverdagi havola bilan
+ * bir kun ajralib ketardi va test boshqa narsani tekshirgan bo'lardi.
+ */
+export function buildPaymeCheckoutUrl({
+  merchantId,
+  accountField,
+  orderId,
+  amountInSom,
+  lang,
+  checkoutUrl,
+  returnUrl,
+}: PaymeCheckoutLinkParams): string {
+  const parts = [
+    `m=${merchantId}`,
+    `ac.${accountField}=${orderId}`,
+    `a=${toTiyin(amountInSom)}`,
+    `l=${lang}`,
+    'cr=UZS',
+  ];
+
+  if (returnUrl) parts.push(`c=${returnUrl}`);
+
+  const encoded = Buffer.from(parts.join(';'), 'utf-8').toString('base64');
+  return `${checkoutUrl.replace(/\/+$/, '')}/${encoded}`;
+}

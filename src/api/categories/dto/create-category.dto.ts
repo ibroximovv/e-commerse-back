@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -79,4 +80,55 @@ export class CreateCategoryDto {
   @Min(0)
   @IsOptional()
   sort_order?: number;
+
+  // --- Fiskalizatsiya (O'zbekiston OFD) --------------------------------------
+  // IKPU tovar GURUHIGA beriladi, shuning uchun asosiy joyi shu yerda: bitta
+  // kategoriyani to'ldirsangiz ichidagi hamma mahsulot shuni oladi. Mahsulotdagi
+  // bir nomli maydon faqat istisnolar uchun va bu qiymatni qoplaydi.
+
+  @ApiPropertyOptional({
+    example: '08471001001000000',
+    description:
+      'MXIK / IKPU - soliq organidagi tovar klassifikatori kodi. Payme chekni ' +
+      "shu kod bilan fiskallashtiradi. Bo'sh qolsa bu kategoriyadagi " +
+      "mahsulotlar uchun to'lov -31008 bilan to'xtaydi (mahsulotning o'zida " +
+      "kod bo'lmasa).",
+  })
+  @IsString()
+  @IsOptional()
+  ikpu_code?: string;
+
+  @ApiPropertyOptional({
+    example: '1501886',
+    description: "Qadoqlash kodi. Ixtiyoriy - berilmasa chekka qo'shilmaydi.",
+  })
+  @IsString()
+  @IsOptional()
+  package_code?: string;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      'QQS stavkasi foizda (0 yoki 12). Payme uchun MAJBURIY - 0 ham haqiqiy ' +
+      "qiymat (QQS to'lovchisi emassiz), lekin umuman berilmasa to'lov " +
+      "-31008 bilan to'xtaydi.",
+  })
+  @ToNumber()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  vat_percent?: number;
+
+  @ApiPropertyOptional({
+    example: 241092,
+    description:
+      "O'lchov birligi klassifikatori kodi (dona uchun 241092). Ixtiyoriy - " +
+      "berilmasa chekka qo'shilmaydi.",
+  })
+  @ToNumber()
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  units?: number;
 }
