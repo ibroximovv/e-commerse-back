@@ -1,4 +1,29 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "prisma"]
+  "compilerOptions": {
+    // `rootDir` ni QAT'IY belgilaymiz. Busiz TypeScript umumiy ildizni
+    // kiritilgan fayllardan o'zi hisoblaydi: `src/` tashqarisidagi bitta
+    // `.ts` fayl kirib qolsa ildiz loyiha papkasiga ko'tariladi va natija
+    // `dist/main.js` emas, `dist/src/main.js` bo'lib qoladi - pm2 esa
+    // `dist/main.js` ni ishga tushiradi, ya'ni server jimgina yiqiladi.
+    // Endi bunday fayl kirsa build ANIQ xato bilan to'xtaydi (TS6059).
+    "rootDir": "src",
+
+    // Inkremental keshni `dist/` ICHIDA saqlaymiz. Tashqarida qolsa
+    // `nest build` (u `deleteOutDir: true` bilan `dist/` ni o'chiradi) keshni
+    // o'chirmaydi, tsc esa "hammasi qurilgan" deb hech narsa yozmaydi va
+    // JIMGINA exit 0 qaytaradi - natijada `dist/main.js` umuman paydo
+    // bo'lmaydi, pm2 esa ishga tushira olmaydi.
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
+  },
+  // `prisma/` va `scripts/` - ts-node bilan qo'lda ishga tushiriladigan
+  // yordamchi skriptlar, ular serverdagi ilova build'iga kirmaydi.
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    "prisma",
+    "scripts"
+  ]
 }

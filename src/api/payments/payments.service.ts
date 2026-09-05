@@ -7,7 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PaymentsQueryDto } from './dto/payments-query.dto';
 import { PaymeService } from './payme/payme.service';
-import { Lang } from '../../common/i18n/locale';
+import { normalizeLanguage } from '../../common/i18n/locale';
 
 @Injectable()
 export class PaymentsService {
@@ -24,11 +24,17 @@ export class PaymentsService {
    * buyurtma o'sha yerda `CONFIRMED` bo'ladi. Ilgari bu metod to'lovni
    * darhol `SUCCESSFUL` qilib qo'yardi - ya'ni hech qanday pul o'tmasdan
    * buyurtma to'langan hisoblanardi.
+   *
+   * Kassa oynasining tili so'rovdan EMAS, xaridorning profilidan olinadi
+   * (`user.language`). Mijozdan `lang` so'rash ortiqcha edi: bu qiymat allaqachon
+   * bazada turibdi va fiskal chek satrlari ham aynan o'shandan tuziladi
+   * ([payme.service.ts](../payme/payme.service.ts) `normalizeLanguage(order.user?.language)`),
+   * ya'ni endi kassa va chek bir xil tilda chiqadi.
    */
-  async createCheckout(userId: string, orderId: string, lang: Lang = 'uz') {
+  async createCheckout(userId: string, orderId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { payment: true },
+      include: { payment: true, user: { select: { language: true } } },
     });
 
     if (!order || order.user_id !== userId) {
@@ -54,7 +60,7 @@ export class PaymentsService {
       checkout_url: this.paymeService.buildCheckoutUrl(
         order.id,
         order.total_amount,
-        lang,
+        normalizeLanguage(order.user?.language),
       ),
     };
   }

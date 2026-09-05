@@ -53,7 +53,7 @@ Payme sizga yeta olmaydi (buning yechimi 10-bo'limda).
 
 | Yo'nalish | Endpoint | Kim chaqiradi | Nima qiladi |
 | :-- | :-- | :-- | :-- |
-| Chiquvchi | `POST /api/payments/checkout` | Frontend (JWT bilan) | Faqat **havola** qaytaradi. To'lovni yakunlamaydi. |
+| Chiquvchi | `GET /api/payments/checkout/:order_id` | Frontend (JWT bilan) | Faqat **havola** qaytaradi. To'lovni yakunlamaydi. |
 | Kiruvchi | `POST /api/payments/payme` | **Payme serveri** | To'lovni haqiqatda amalga oshiradi. |
 
 > ⚠️ **Diqqat:** `checkout` hech qachon buyurtmani "to'langan" deb belgilamaydi.
@@ -264,7 +264,7 @@ sequenceDiagram
     API->>DB: Order (PENDING) + zaxira kamayadi
     API-->>User: order_id
 
-    User->>API: POST /api/payments/checkout {order_id}
+    User->>API: GET /api/payments/checkout/:order_id
     Note over API: Faqat base64 havola quriladi.<br/>Hech qanday tarmoq so'rovi YO'Q.
     API-->>User: checkout_url
 
@@ -314,17 +314,21 @@ Javobdan `data.id` (buyurtma ID) olinadi.
 ### 2-qadam: to'lov havolasini olish
 
 ```http
-POST /api/payments/checkout
+GET /api/payments/checkout/<buyurtma-id>
 Authorization: Bearer <access_token>
-
-{ "order_id": "<buyurtma-id>", "lang": "uz" }
 ```
 
-> `provider` yuborilmaydi — ulangan yagona kassa Payme, servis baribir har
-> doim Payme havolasini quradi. Eski mijoz uni yuborsa ham xato bo'lmaydi:
-> `ValidationPipe` `whitelist: true` bilan ishlaydi va notanish maydonni
-> jimgina olib tashlaydi. Ikkinchi provayder ulanganda maydon qaytadan
+> **Tana (body) umuman yo'q.** Buyurtma ID yo'lda keladi, boshqa hech narsa
+> kerak emas.
+>
+> `provider` so'ralmaydi — ulangan yagona kassa Payme, servis baribir har
+> doim Payme havolasini quradi. Ikkinchi provayder ulanganda maydon qaytadan
 > qo'shiladi (ixtiyoriy maydon — buzuvchi o'zgarish emas).
+>
+> `lang` ham so'ralmaydi. Kassa oynasining tili (`l=` parametri) xaridorning
+> profilidagi `user.language` dan olinadi — fiskal chek satrlari ham aynan
+> o'sha tildan quriladi, ya'ni kassa va chek doim bir xil tilda chiqadi.
+> Til o'zgartirish uchun foydalanuvchi profilini yangilash kifoya.
 
 Javob:
 
@@ -678,12 +682,11 @@ Prod'ga chiqishdan oldin:
 
 ```
 src/api/payments/
-├── payments.controller.ts        # /checkout, /status, /admin/all (JWT bilan)
+├── payments.controller.ts        # /checkout/:order_id, /status, /admin/all (JWT bilan)
 ├── payments.service.ts           # checkout havolasi, holat, admin ro'yxati
 ├── payments.module.ts
 ├── dto/
-│   ├── pay-order.dto.ts
-│   └── payments-query.dto.ts
+│   └── payments-query.dto.ts     # faqat admin ro'yxati uchun; checkout DTO'siz
 └── payme/
     ├── payme.controller.ts       # POST /api/payments/payme (webhook)
     ├── payme.service.ts          # 6 ta JSON-RPC metodi + avtorizatsiya

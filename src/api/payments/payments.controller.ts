@@ -1,28 +1,17 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
+  ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
-import { CreateCheckoutDto } from './dto/pay-order.dto';
 import { PaymentsQueryDto } from './dto/payments-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { CurrentLang } from '../../common/i18n/request-language';
-import type { Lang } from '../../common/i18n/locale';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -31,24 +20,21 @@ import type { Lang } from '../../common/i18n/locale';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post('checkout')
+  @Get('checkout/:order_id')
+  @ApiParam({ name: 'order_id', example: 'order-uuid-here' })
   @ApiOperation({
     summary: 'Buyurtma uchun Payme kassasiga havola olish',
     description:
       "To'lovni YAKUNLAMAYDI - faqat havola qaytaradi. Mijoz kassada to'lovni " +
       'tasdiqlagach, Payme `POST /api/payments/payme` ga murojaat qiladi va ' +
-      "buyurtma o'sha yerda CONFIRMED bo'ladi.",
+      "buyurtma o'sha yerda CONFIRMED bo'ladi. Kassa oynasining tili " +
+      "xaridorning profilidan olinadi, so'rovda til yubormaysiz.",
   })
   createCheckout(
     @CurrentUser('sub') userId: string,
-    @Body() dto: CreateCheckoutDto,
-    @CurrentLang() lang: Lang,
+    @Param('order_id') orderId: string,
   ) {
-    return this.paymentsService.createCheckout(
-      userId,
-      dto.order_id,
-      dto.lang ?? lang,
-    );
+    return this.paymentsService.createCheckout(userId, orderId);
   }
 
   @Get('admin/all')

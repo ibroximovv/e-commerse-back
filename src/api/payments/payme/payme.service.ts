@@ -41,7 +41,7 @@ import {
  *
  * Payme SERVERI bizga murojaat qiladi, biz Payme'ga emas. Oqim:
  *
- *   1. Mijoz `POST /api/payments/checkout-link` orqali to'lov havolasini oladi;
+ *   1. Mijoz `GET /api/payments/checkout/:order_id` orqali to'lov havolasini oladi;
  *   2. Payme kassasida karta ma'lumotlarini kiritadi;
  *   3. Payme bizning `POST /api/payments/payme` endpointimizga
  *      CheckPerformTransaction -> CreateTransaction -> PerformTransaction

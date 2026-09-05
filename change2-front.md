@@ -7,7 +7,7 @@
 >
 > - `Product.name` / `description` endi bitta satr emas — uch tilda saqlanadi;
 > - `attributes` elementi `{key, value}` emas — `{key, value, unit}`, har biri 3 tilli;
-> - `POST /api/payments` **o'chirilgan** → `POST /api/payments/checkout`;
+> - `POST /api/payments` **o'chirilgan** → `GET /api/payments/checkout/:order_id` (tanasiz);
 > - `payment.transaction_id` → `payment.payme_transaction_id`;
 > - `provider` faqat `payme` (CLICK yo'q);
 > - javob konvertida `message`/`meta` `null` emas — bo'lmasa **umuman yo'q**,

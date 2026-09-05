@@ -406,8 +406,8 @@ o'z IKPU kodi bilan, aks holda tenglik buziladi va to'lov o'tmaydi.
 ### Eski endpoint o'chirildi
 
 ```diff
-- POST /api/payments          { order_id, provider }
-+ POST /api/payments/checkout { order_id, lang? }
+- POST /api/payments                       { order_id, provider }
++ GET  /api/payments/checkout/:order_id    (tanasiz)
 ```
 
 Eski `POST /api/payments` to'lovni **darhol muvaffaqiyatli** deb belgilardi —
@@ -417,7 +417,7 @@ hech qanday pul o'tmasdan buyurtma to'langan hisoblanardi. U olib tashlandi.
 
 ```
 1. POST /api/orders/checkout          → buyurtma yaratiladi (status: PENDING)
-2. POST /api/payments/checkout        → checkout_url olinadi
+2. GET  /api/payments/checkout/:id    → checkout_url olinadi
 3. window.location = checkout_url     → mijoz Payme kassasiga o'tadi
 4. (Payme serveri backendga o'zi murojaat qiladi)
 5. Mijoz PAYME_RETURN_URL ga qaytadi
@@ -432,12 +432,12 @@ hech qanday pul o'tmasdan buyurtma to'langan hisoblanardi. U olib tashlandi.
 ### Havola olish
 
 ```http
-POST /api/payments/checkout
+GET /api/payments/checkout/<order_id>
 Authorization: Bearer <token>
 ```
-```json
-{ "order_id": "…", "lang": "uz" }
-```
+
+Tana yubormaysiz. `lang` ham yubormaysiz — kassa oynasining tili
+foydalanuvchi profilidagi `language` dan olinadi.
 
 ```json
 {
@@ -581,7 +581,7 @@ bo'lishi mumkin — ikkalasini ham qo'llab-quvvatlang.
 - [ ] Tarjima qilinmagan tilni belgilash (`?raw=true` da bo'sh maydonlar)
 
 **To'lov**
-- [ ] `POST /api/payments` → `POST /api/payments/checkout`
+- [ ] `POST /api/payments` → `GET /api/payments/checkout/:order_id` (tanasiz)
 - [ ] `checkout_url` ga redirect qiling
 - [ ] Qaytish sahifasida `GET /api/payments/status/:order_id` bilan polling
 - [ ] `payme_state` bo'yicha holat ekranlari
