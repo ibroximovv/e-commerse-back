@@ -1,99 +1,143 @@
 {
   "_help": [
     "IKPU / MXIK kodlarini SHU YERGA yozing, keyin: npm run db:set:ikpu",
-    "Kodlarni https://tasnif.soliq.uz dan oling (ruscha qidiring).",
-    "vat_percent: QQS to'lovchisi bo'lsangiz 12, bo'lmasangiz 0. Buxgalterdan so'rang.",
+    "",
+    "MUHIM: tasnif.soliq.uz da SO'Z bo'yicha qidirsangiz OMONIMLAR chiqadi.",
+    "  'стабилизатор'       -> rezina uchun KIMYOVIY stabilizator (HS 3812),",
+    "                          kuchlanish stabilizatori EMAS.",
+    "  'расширительный бак' -> bakning REZINA MEMBRANASI (HS 4016),",
+    "                          bakning o'zi EMAS.",
+    "  'инструменты'        -> ASBOBLAR TO'PLAMI/nabor (HS 8206),",
+    "                          payvandlash apparati EMAS.",
+    "",
+    "Shuning uchun har bir yozuvda '_hs' bor - kutilayotgan HS (ТН ВЭД) guruhi.",
+    "IKPU = '0' + 4 xonali HS sarlavhasi + subpozitsiya.",
+    "Skript kodning shu prefiks bilan boshlanishini TEKSHIRADI.",
+    "",
+    "vat_percent: QQS to'lovchisi bo'lsangiz 12, bo'lmasangiz 0.",
+    "  Bu TOVARGA emas, KOMPANIYANGIZNING soliq rejimiga bog'liq.",
+    "  Buxgalterdan so'rang - noto'g'ri stavka soliq muammosi.",
+    "",
     "units: dona = 241092.",
-    "ikpu_code bo'sh qolsa - o'sha kategoriya O'TKAZIB YUBORILADI (bazadagi qiymat tegilmaydi).",
-    "Bir guruhdagi kategoriyalarga BIR XIL kodni yozaverasiz - bu normal.",
-    "_ bilan boshlanadigan kalitlarni skript e'tiborsiz qoldiradi."
+    "ikpu_code bo'sh qolsa - o'sha yozuv O'TKAZIB YUBORILADI (baza tegilmaydi).",
+    "_ bilan boshlanadigan kalitlar e'tiborsiz qoladi ('_hs' dan tashqari)."
   ],
-
   "categories": {
     "avtomaticheskie-nasosy": {
-      "_name": "1. Автоматические насосы (14 ta)",
-      "_search": "насос водяной / насос центробежный бытовой",
+      "_name": "1. Автоматические насосы (14 ta) - 1WZB / PW / XP / SMART",
+      "_tovar": "Maishiy avtomatik suv nasosi, 250-1100 W, 220 V",
+      "_hs": "08413",
+      "_search": "насос центробежный бытовой / насос водяной самовсасывающий",
+      "_diqqat": "Skrinshotdagi 08413001001000000 - bu 8413.30 (ЁQILG'I/MOY, ichki yonish dvigateli uchun), ya'ni AVTOMOBIL nasosi. Maishiy suv nasosi uchun 8413.70 / 8413.81 subpozitsiyasini tanlang.",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8413 70 yoki 8413 81 (8413 30 EMAS - u dvigatel nasosi)"
     },
     "pogruzhnye-nasosy": {
-      "_name": "2. Погружные насосы (9 ta)",
-      "_search": "насос погружной / насос дренажный / насос фекальный",
+      "_name": "2. Погружные насосы (9 ta) - QDX",
+      "_tovar": "Botiriladigan drenaj nasosi, IP68, 250-5500 W",
+      "_hs": "08413",
+      "_search": "насос погружной / насос дренажный",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8413 70"
     },
     "poverhnostnye-nasosy": {
-      "_name": "3. Поверхностные насосы (11 ta)",
-      "_search": "насос поверхностный / насос самовсасывающий",
+      "_name": "3. Поверхностные насосы (11 ta) - QB / CPM / JET",
+      "_tovar": "Yer usti markazdan qochma / o'ziga so'ruvchi nasos",
+      "_hs": "08413",
+      "_search": "насос центробежный / насос самовсасывающий",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8413 70 / 8413 81"
     },
     "avtomaticheskie-regulyatory": {
-      "_name": "4. Автоматические регуляторы (1 ta)",
-      "_search": "реле давления / регулятор давления воды",
+      "_name": "4. Автоматические регуляторы (1 ta) - EPC-1",
+      "_tovar": "Nasos uchun bosim relesi/kontrolleri, 220-240 V, IP65, 1 MPa",
+      "_hs": "09032",
+      "_search": "реле давления / прибор автоматического регулирования давления",
+      "_diqqat": "Skrinshotdagi 08410001999000000 NOTO'G'RI - u gidravlik TURBINA ehtiyot qismi. EPC-1 bu bosim relesi: HS 9032 (avtomatik rostlash asboblari) yoki 8536.50 (elektr kalit). 8536 tanlasangiz _hs ni 08536 qiling.",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "9032 20 (маностаты = bosim relesi) - eng aniq mos"
     },
     "tsirkulyatsionnye-nasosy": {
-      "_name": "5. Циркуляционные насосы (6 ta)",
+      "_name": "5. Циркуляционные насосы (6 ta) - RS / LPS",
+      "_tovar": "Isitish tizimi sirkulyatsion nasosi, 46-248 W",
+      "_hs": "08413",
       "_search": "насос циркуляционный",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8413 70"
     },
     "rasshiritelnyy-bak": {
-      "_name": "6. Расширительный бак (7 ta)",
-      "_search": "бак расширительный / гидроаккумулятор",
+      "_name": "6. Расширительный бак (7 ta) - Tank 8V...50V",
+      "_tovar": "Po'lat gidroakkumulyator bak, 8-50 l, 8-10 bar, EPDM membrana",
+      "_hs": "",
+      "_search": "бак стальной / резервуар металлический / гидроаккумулятор",
+      "_diqqat": "Skrinshotdagi 04016001089000000 NOTO'G'RI - u bakning REZINA MEMBRANASI. DIQQAT: 7309 sig'imi 300 l dan KATTA idishlar uchun, sizdagi baklar 8-50 l. Shuning uchun 7310 (<=300 l) yoki 8413 91 (nasos ehtiyot qismi) ni ko'ring. Qaysi birini tanlasangiz _hs ni shunga yozing (07310 yoki 08413), keyin skript tekshiradi.",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "7310 (<=300 l idish) yoki 8413 91 (nasos qismi) - IKKALASINI ko'ring"
     },
     "instrumenty": {
-      "_name": "7. Инструменты (4 ta) - kategoriyaga PAYVANDLASH kodi",
-      "_search": "аппарат сварочный",
-      "_note": "Elektrodvigatellar (YL90-L-2, YL90L-4) quyida alohida - ular boshqa guruh",
+      "_name": "7. Инструменты - kategoriyaga PAYVANDLASH APPARATI kodi (MIG-300/400)",
+      "_tovar": "Invertorli yarim avtomat payvandlash apparati, 220 V, 20-250 A",
+      "_hs": "08515",
+      "_search": "аппарат сварочный инверторный / машина для дуговой сварки",
+      "_diqqat": "Skrinshotdagi 08206001019000000 NOTO'G'RI - u qo'l ASBOBLARI TO'PLAMI. Payvandlash apparati HS 8515. Elektrodvigatellar quyida alohida.",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8515 31 (yarim avtomat yoy payvandlash)"
     },
     "stabilizatory": {
-      "_name": "8. Стабилизаторы (2 ta)",
-      "_search": "стабилизатор напряжения",
+      "_name": "8. Стабилизаторы (2 ta) - DNB-1000VA / DNB-2000VA",
+      "_tovar": "Relayli avtomatik kuchlanish stabilizatori, 1000/2000 VA, kirish 100-260 V",
+      "_hs": "09032",
+      "_search": "стабилизатор напряжения автоматический / регулятор напряжения",
+      "_diqqat": "Skrinshotdagi 03812001002000000 BUTUNLAY NOTO'G'RI - u rezina/plastmassa uchun KIMYOVIY qo'shimcha. Kuchlanish stabilizatori HS 9032.89 yoki 8504.40; 8504 tanlasangiz _hs ni 08504 qiling.",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "9032 89 yoki 8504 40"
     }
   },
-
   "products": {
     "_help": "Kategoriyanikini QOPLAYDIGAN istisnolar. Kalit - SKU.",
     "YL90-L-2": {
-      "_name": "Elektrodvigatel (Инструменты ichida, lekin boshqa guruh)",
-      "_search": "электродвигатель асинхронный",
+      "_name": "Elektrodvigatel 3 kW, 3000 ob/min ('Инструменты' ichida, boshqa guruh)",
+      "_hs": "08501",
+      "_search": "электродвигатель переменного тока асинхронный",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8501 40 (bir fazali, 220 V) - katalogda 220 V / 13 A"
     },
     "YL90L-4": {
-      "_name": "Elektrodvigatel",
-      "_search": "электродвигатель асинхронный",
+      "_name": "Elektrodvigatel 3 kW, 1500 ob/min",
+      "_hs": "08501",
+      "_search": "электродвигатель переменного тока асинхронный",
       "ikpu_code": "",
       "package_code": "",
       "vat_percent": 12,
-      "units": 241092
+      "units": 241092,
+      "_tif_tn": "8501 40 (bir fazali, 220 V)"
     }
   }
 }

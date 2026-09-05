@@ -35,6 +35,15 @@ interface FiscalEntry {
   package_code?: string;
   vat_percent?: number;
   units?: number;
+  /**
+   * Kutilayotgan HS (ТН ВЭД) sarlavhasi, masalan `08413`.
+   *
+   * IKPU = "0" + 4 xonali HS sarlavhasi + subpozitsiya. `tasnif.soliq.uz` da
+   * so'z bo'yicha qidirilganda omonimlar chiqadi: "стабилизатор" so'rovi
+   * rezina uchun KIMYOVIY stabilizatorni (HS 3812) qaytaradi, kuchlanish
+   * stabilizatorini emas. Prefiks shu xatoni ushlaydi.
+   */
+  _hs?: string;
 }
 
 interface IkpuFile {
@@ -74,6 +83,18 @@ function validate(label: string, entry: FiscalEntry): Resolved | null {
     errors.push(
       `${label}: ikpu_code "${ikpu}" - 17 xonali RAQAM bo'lishi kerak ` +
         `(hozir ${ikpu.length} belgi)`,
+    );
+    return null;
+  }
+
+  // Kod to'g'ri HS guruhidanmi. Bu eng ko'p uchraydigan xatoni ushlaydi:
+  // klassifikatorda so'z bo'yicha qidirilganda butunlay boshqa tovar chiqadi.
+  const hs = (entry._hs ?? '').trim();
+  if (hs && !ikpu.startsWith(hs)) {
+    errors.push(
+      `${label}: ikpu_code "${ikpu}" "${hs}" bilan boshlanmaydi ` +
+        `(kutilgan HS guruhi). Boshqa tovar guruhining kodini olib ` +
+        `qo'ymadingizmi? Tekshiring yoki ikpu.json dagi "_hs" ni to'g'irlang.`,
     );
     return null;
   }
