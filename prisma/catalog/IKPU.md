@@ -176,7 +176,38 @@ SKU: `DNB-1000-VA`, `DNB-2000-VA`
 
 ## 3. Kodlarni loyihaga kiritish
 
-### Variant A — admin panel (tavsiya etiladi)
+### Variant A — skript (tavsiya etiladi)
+
+[`prisma/catalog/ikpu.json`](ikpu.json) ni to'ldiring — 8 kategoriya va 2 ta
+mahsulot istisnosi allaqachon ro'yxatda, har birida qidiruv so'zi bilan:
+
+```jsonc
+"stabilizatory": {
+  "_name": "8. Стабилизаторы (2 ta)",
+  "_search": "стабилизатор напряжения",
+  "ikpu_code": "00854001001000000",   // ← shu yerga yozasiz
+  "package_code": "1508957",
+  "vat_percent": 12,
+  "units": 241092
+}
+```
+
+```bash
+npm run db:set:ikpu -- --dry-run   # avval rejani ko'ring
+npm run db:set:ikpu                # bazaga yozadi
+npm run db:check:ikpu              # tekshiradi
+```
+
+Skript tekshiradi: `ikpu_code` — **17 xonali raqam**, `vat_percent` — majburiy
+(0..100). Xato bo'lsa hech nima yozmaydi va **exit 1** qaytaradi.
+
+`ikpu_code` bo'sh bo'lsa o'sha yozuv **o'tkazib yuboriladi** va bazadagi qiymat
+tegilmaydi — ya'ni faylni bosqichma-bosqich to'ldirsangiz ham bo'ladi.
+
+> ⚠️ `db:reset:catalog` kategoriyalarni ham o'chiradi. Toza importdan keyin
+> tartib: `db:import:catalog` → **`db:set:ikpu`** → `db:check:ikpu`.
+
+### Variant B — admin panel
 
 `PATCH /api/categories/:id` — 8 ta so'rov va tugadi:
 
@@ -193,7 +224,7 @@ SKU: `DNB-1000-VA`, `DNB-2000-VA`
 `PATCH /api/products/:id` bilan — xuddi shu maydonlar Product DTO'sida ham bor
 va kategoriyanikini qoplaydi.
 
-### Variant B — `categories.json` orqali
+### Variant C — `categories.json` orqali
 
 Aniq kodlarni olganingizdan keyin ularni katalog faylida ham saqlab qo'ysangiz,
 toza bazaga import qilganda avtomatik tushadi:

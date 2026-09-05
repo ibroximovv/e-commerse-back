@@ -1,0 +1,99 @@
+{
+  "_help": [
+    "IKPU / MXIK kodlarini SHU YERGA yozing, keyin: npm run db:set:ikpu",
+    "Kodlarni https://tasnif.soliq.uz dan oling (ruscha qidiring).",
+    "vat_percent: QQS to'lovchisi bo'lsangiz 12, bo'lmasangiz 0. Buxgalterdan so'rang.",
+    "units: dona = 241092.",
+    "ikpu_code bo'sh qolsa - o'sha kategoriya O'TKAZIB YUBORILADI (bazadagi qiymat tegilmaydi).",
+    "Bir guruhdagi kategoriyalarga BIR XIL kodni yozaverasiz - bu normal.",
+    "_ bilan boshlanadigan kalitlarni skript e'tiborsiz qoldiradi."
+  ],
+
+  "categories": {
+    "avtomaticheskie-nasosy": {
+      "_name": "1. Автоматические насосы (14 ta)",
+      "_search": "насос водяной / насос центробежный бытовой",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "pogruzhnye-nasosy": {
+      "_name": "2. Погружные насосы (9 ta)",
+      "_search": "насос погружной / насос дренажный / насос фекальный",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "poverhnostnye-nasosy": {
+      "_name": "3. Поверхностные насосы (11 ta)",
+      "_search": "насос поверхностный / насос самовсасывающий",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "avtomaticheskie-regulyatory": {
+      "_name": "4. Автоматические регуляторы (1 ta)",
+      "_search": "реле давления / регулятор давления воды",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "tsirkulyatsionnye-nasosy": {
+      "_name": "5. Циркуляционные насосы (6 ta)",
+      "_search": "насос циркуляционный",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "rasshiritelnyy-bak": {
+      "_name": "6. Расширительный бак (7 ta)",
+      "_search": "бак расширительный / гидроаккумулятор",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "instrumenty": {
+      "_name": "7. Инструменты (4 ta) - kategoriyaga PAYVANDLASH kodi",
+      "_search": "аппарат сварочный",
+      "_note": "Elektrodvigatellar (YL90-L-2, YL90L-4) quyida alohida - ular boshqa guruh",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "stabilizatory": {
+      "_name": "8. Стабилизаторы (2 ta)",
+      "_search": "стабилизатор напряжения",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    }
+  },
+
+  "products": {
+    "_help": "Kategoriyanikini QOPLAYDIGAN istisnolar. Kalit - SKU.",
+    "YL90-L-2": {
+      "_name": "Elektrodvigatel (Инструменты ichida, lekin boshqa guruh)",
+      "_search": "электродвигатель асинхронный",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    },
+    "YL90L-4": {
+      "_name": "Elektrodvigatel",
+      "_search": "электродвигатель асинхронный",
+      "ikpu_code": "",
+      "package_code": "",
+      "vat_percent": 12,
+      "units": 241092
+    }
+  }
+}

@@ -178,6 +178,19 @@ async function createOrders() {
       },
     });
 
+    // `OrdersService.checkout` buyurtma yaratganda zaxirani kamaytirib,
+    // sotuv hisoblagichlarini oshiradi. Biz buyurtmani to'g'ridan-to'g'ri
+    // Prisma orqali yaratamiz, shuning uchun o'sha yon ta'sirlarni qo'lda
+    // takrorlaymiz: aks holda `CancelTransaction` (refund) ularni qaytarganda
+    // `sales_count` manfiy songa tushib ketardi.
+    await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        stock: { decrement: 1 },
+        sales_count: { increment: 1 },
+      },
+    });
+
     console.log(`${i + 1}) order_id : ${order.id}`);
     console.log(`   havola   : ${checkoutLink(order.id, amount, 'uz')}\n`);
   }

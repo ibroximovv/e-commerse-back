@@ -18,6 +18,7 @@
     "db:backfill": "ts-node prisma/backfill.ts",
     "db:import:catalog": "ts-node prisma/import-catalog.ts",
     "db:check:ikpu": "ts-node prisma/check-ikpu.ts",
+    "db:set:ikpu": "ts-node prisma/set-ikpu.ts",
     "db:reset:catalog": "ts-node prisma/reset-catalog.ts",
     "catalog:images": "ts-node prisma/extract-catalog-images.ts",
     "payme:selftest": "ts-node scripts/payme-selftest.ts",
