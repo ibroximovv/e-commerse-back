@@ -14,10 +14,24 @@
  *   npm run payme:prod-test -- --price 2000
  *   npm run payme:prod-test -- --no-order    # Faqat user va mahsulotni tayyorlash
  */
-import { PrismaClient, OrderStatus, Role } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { buildPaymeCheckoutUrl } from '../src/api/payments/payme/payme.constants';
+
+// Prisma types serverda qayta generate qilinmagan bo'lsa ham TypeScript xato bermasligi uchun:
+const OrderStatus = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+const Role = {
+  ADMIN: 'ADMIN',
+  USER: 'USER',
+} as const;
 
 dotenv.config();
 
@@ -86,7 +100,7 @@ async function main() {
     update: {
       password: hashedPassword,
       is_verified: true, // OTP talab qilinmasligi uchun
-      role: Role.USER,
+      role: Role.USER as any,
       language: 'uz',
     },
     create: {
@@ -95,7 +109,7 @@ async function main() {
       full_name: 'Payme Test User',
       phone: '+998901234567',
       is_verified: true,
-      role: Role.USER,
+      role: Role.USER as any,
       language: 'uz',
     },
   });
@@ -207,7 +221,7 @@ async function main() {
       data: {
         user_id: user.id,
         total_amount: PRICE,
-        status: OrderStatus.PENDING,
+        status: OrderStatus.PENDING as any,
         customer_name: user.full_name,
         customer_phone: user.phone,
         shipping_address: 'Toshkent sh., Test sinov manzili 1-uy',
