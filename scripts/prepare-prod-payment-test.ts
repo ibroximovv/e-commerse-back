@@ -62,11 +62,14 @@ const CHECKOUT_URL =
   process.env.PAYME_CHECKOUT_URL ?? 'https://checkout.paycom.uz';
 const RETURN_URL = process.env.PAYME_RETURN_URL ?? 'https://ocomarket.uz/orders';
 
-// Fiskal (IKPU) ma'lumotlari: Payme fiskallashtirishi uchun majburiy
-const IKPU_CODE = option('ikpu') ?? '08413001001003001';
-const PACKAGE_CODE = option('package-code') ?? '1508957';
-const VAT_PERCENT = Number(option('vat') ?? 0); // 0% QQS (agar QQS to'lovchisi bo'lmasa)
-const UNITS = Number(option('units') ?? 241092); // dona
+// Fiskal (IKPU) ma'lumotlari:
+// DIQQAT: `package_code` tasdiqlanmagan soxta son ('1508957') bo'lsa, Soliq OFD "Fiskal ma'lumotlar noto'g'ri"
+// xatosi bilan to'lovni bekor qiladi. Shuning uchun standart holatda null bo'ladi.
+// IKPU kodi sifatida bazaviy (oxiri 000000) universal kod ishlatiladi.
+const IKPU_CODE = option('ikpu') ?? '08413001001000000';
+const PACKAGE_CODE = option('package-code') ?? null;
+const VAT_PERCENT = option('vat') !== undefined ? Number(option('vat')) : 0;
+const UNITS = option('units') ? Number(option('units')) : null;
 
 async function main() {
   console.log('='.repeat(70));
@@ -141,6 +144,14 @@ async function main() {
         vat_percent: VAT_PERCENT,
         units: UNITS,
         is_archived: false,
+      },
+      select: { id: true, name_uz: true, ikpu_code: true, vat_percent: true },
+    });
+  } else {
+    category = await prisma.category.update({
+      where: { id: category.id },
+      data: {
+        package_code: PACKAGE_CODE,
       },
       select: { id: true, name_uz: true, ikpu_code: true, vat_percent: true },
     });
