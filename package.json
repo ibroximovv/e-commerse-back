@@ -24,6 +24,7 @@
     "payme:selftest": "ts-node scripts/payme-selftest.ts",
     "payme:test-order": "ts-node scripts/payme-test-order.ts",
     "payme:prod-test": "ts-node scripts/prepare-prod-payment-test.ts",
+    "payme:real-test": "ts-node scripts/payme-real-product-test.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
