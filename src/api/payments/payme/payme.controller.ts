@@ -47,11 +47,18 @@ export class PaymeController {
     const id = body?.id ?? null;
 
     try {
+      this.logger.log(
+        `Payme webhook so'rovi keldi: method=${body?.method}, id=${id}, params=${JSON.stringify(body?.params)}`,
+      );
       this.paymeService.authorize(authorization);
       const result = await this.paymeService.handle(body);
+      this.logger.log(`Payme webhook muvaffaqiyatli yakunlandi: method=${body?.method}`);
       return { jsonrpc: JSONRPC_VERSION, id, result };
     } catch (error) {
       if (error instanceof PaymeError) {
+        this.logger.warn(
+          `Payme so'rovi rad etildi: method=${body?.method}, code=${error.code}, sabab=${JSON.stringify(error.localizedMessage)}${error.data ? `, data=${JSON.stringify(error.data)}` : ''}`,
+        );
         return {
           jsonrpc: JSONRPC_VERSION,
           id,

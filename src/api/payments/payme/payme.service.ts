@@ -156,7 +156,7 @@ export class PaymeService implements OnModuleInit {
    * taxmin qilish (timing attack) uchun yo'l ochib beradi.
    */
   authorize(header: string | undefined): void {
-    const expectedKey = this.config.get<string>('PAYME_KEY');
+    const expectedKey = this.config.get<string>('PAYME_KEY')?.trim();
 
     if (!expectedKey) {
       this.logger.error("PAYME_KEY sozlanmagan - barcha so'rovlar rad etiladi");
@@ -164,6 +164,7 @@ export class PaymeService implements OnModuleInit {
     }
 
     if (!header?.startsWith('Basic ')) {
+      this.logger.warn("Payme avtorizatsiya rad etildi: 'Authorization: Basic ...' sarlavhasi yo'q");
       throw PaymeError.insufficientPrivileges();
     }
 
@@ -171,17 +172,25 @@ export class PaymeService implements OnModuleInit {
     try {
       decoded = Buffer.from(header.slice(6).trim(), 'base64').toString('utf-8');
     } catch {
+      this.logger.warn("Payme avtorizatsiya rad etildi: base64 dekod qilib bo'lmadi");
       throw PaymeError.insufficientPrivileges();
     }
 
     // Kalitning o'zida ham `:` bo'lishi mumkin - faqat birinchisidan bo'lamiz
     const separatorIndex = decoded.indexOf(':');
-    if (separatorIndex < 0) throw PaymeError.insufficientPrivileges();
+    if (separatorIndex < 0) {
+      this.logger.warn("Payme avtorizatsiya rad etildi: ':' ajratuvchi topilmadi");
+      throw PaymeError.insufficientPrivileges();
+    }
 
     const login = decoded.slice(0, separatorIndex);
-    const key = decoded.slice(separatorIndex + 1);
+    const key = decoded.slice(separatorIndex + 1).trim();
 
     if (login !== 'Paycom' || !safeEqual(key, expectedKey)) {
+      this.logger.warn(
+        `Payme kaliti mos kelmadi! Login: "${login}" (kutilgan: "Paycom"). ` +
+          `Kelgan kalit uzunligi: ${key?.length}, serverdagi PAYME_KEY uzunligi: ${expectedKey?.length}`,
+      );
       throw PaymeError.insufficientPrivileges();
     }
   }
