@@ -1,0 +1,417 @@
+{
+  "info": {
+    "_postman_id": "e4f8b9a1-7c23-4d56-9a8b-3f12e5678901",
+    "name": "Payme Production Payment Test (2000 UZS)",
+    "description": "Productionda Payme haqiqiy to'lov tizimini 2000 so'mlik tovar bilan boshidan oxirigacha sinab ko'rish uchun mo'ljallangan to'plam.\n\nOqim:\n1. user@gmail.com bilan tizimga kirish (JWT token olish)\n2. 2000 so'mlik mahsulotni qidirish / ID olish\n3. Savatga qo'shish (Add to cart)\n4. Savatni ko'rish (View cart)\n5. Buyurtma berish (Checkout -> Order ID olish)\n6. Payme kassa havolasini olish (Payme Checkout URL)\n7. To'lovdan keyin statusni tekshirish (Payment status -> SUCCESSFUL)\n8. Buyurtma yakuniy holatini tekshirish (Order status -> CONFIRMED)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.ocomarket.uz",
+      "type": "string",
+      "description": "Production backend domeni (yoki http://localhost:3000)"
+    },
+    {
+      "key": "email",
+      "value": "user@gmail.com",
+      "type": "string",
+      "description": "Test user emaili"
+    },
+    {
+      "key": "password",
+      "value": "Password123!",
+      "type": "string",
+      "description": "Test user paroli"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "Login so'rovidan keyin avtomatik saqlanadi"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string",
+      "description": "Mahsulot qidirish so'rovidan keyin yoki skriptdan olinadi"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string",
+      "description": "Checkout so'rovidan keyin avtomatik saqlanadi"
+    },
+    {
+      "key": "checkout_url",
+      "value": "",
+      "type": "string",
+      "description": "Payme to'lov havolasi"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login (user@gmail.com)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const data = res.data || res;",
+              "if (data.access_token) {",
+              "    pm.collectionVariables.set('access_token', data.access_token);",
+              "    console.log('✅ Access Token muvaffaqiyatli saqlandi!');",
+              "} else {",
+              "    console.error('❌ Token javobda topilmadi:', res);",
+              "}",
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "description": "user@gmail.com va Password123! bilan login qilib, JWT access_token oladi va o'zgaruvchiga saqlaydi."
+      }
+    },
+    {
+      "name": "2. Get Test Product (2000 UZS)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const list = res.data?.products || res.data || res;",
+              "if (Array.isArray(list) && list.length > 0) {",
+              "    const testProd = list.find(p => p.slug === 'test-payme-product-2000' || p.price === 2000) || list[0];",
+              "    pm.collectionVariables.set('product_id', testProd.id);",
+              "    console.log('✅ Mahsulot ID saqlandi:', testProd.id);",
+              "    console.log('Mahsulot nomi:', testProd.name_uz || testProd.name);",
+              "    console.log('Narxi:', testProd.price, 'so\\'m');",
+              "} else {",
+              "    console.warn('⚠️ Mahsulot ro\\'yxati bo\\'sh! Skript orqali mahsulot yaratilganini tekshiring.');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/products?search=test-payme-product-2000",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "products"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "test-payme-product-2000"
+            }
+          ]
+        },
+        "description": "2000 so'mlik test mahsulotini topadi va uning ID sini `product_id` o'zgaruvchisiga saqlaydi."
+      }
+    },
+    {
+      "name": "3. Add Product to Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Mahsulot savatga qo\\'shildi', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product_id\": \"{{product_id}}\",\n  \"quantity\": 1\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/carts/items",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "carts",
+            "items"
+          ]
+        },
+        "description": "2000 so'mlik tovardan 1 dona xaridor savatiga solinadi."
+      }
+    },
+    {
+      "name": "4. View Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Savat muvaffaqiyatli olindi', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/carts",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "carts"
+          ]
+        },
+        "description": "Foydalanuvchi savati holati va undagi tovarlarni tekshiradi."
+      }
+    },
+    {
+      "name": "5. Checkout (Create Order)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const order = res.data || res;",
+              "if (order.id) {",
+              "    pm.collectionVariables.set('order_id', order.id);",
+              "    console.log('✅ Buyurtma yaratildi!');",
+              "    console.log('Order ID:', order.id);",
+              "    console.log('Summa:', order.total_amount, 'so\\'m');",
+              "}",
+              "pm.test('Order status is 201 Created', function () {",
+              "    pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"shipping_address\": \"Toshkent sh., Test sinov manzili 1-uy\",\n  \"customer_phone\": \"+998901234567\",\n  \"customer_name\": \"Test Foydalanuvchi\",\n  \"payment_method\": \"payme\",\n  \"notes\": \"Payme 2000 so'm prod to'lov testi\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/orders/checkout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "orders",
+            "checkout"
+          ]
+        },
+        "description": "Savatdagi 2000 so'mlik tovar bo'yicha yangi buyurtma ochadi va `order_id` ni saqlaydi."
+      }
+    },
+    {
+      "name": "6. Get Payme Checkout URL",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const url = res.data?.checkout_url || res.checkout_url;",
+              "if (url) {",
+              "    pm.collectionVariables.set('checkout_url', url);",
+              "    console.log('================================================================');",
+              "    console.log('🚀 PAYME CHECKOUT URL:');",
+              "    console.log(url);",
+              "    console.log('================================================================');",
+              "    console.log('👉 Ushbu havolani brauzer yoki telefoningizda oching va haqiqiy plastik kartangiz orqali 2000 so\\'m to\\'lang!');",
+              "} else {",
+              "    console.error('❌ Checkout URL topilmadi:', res);",
+              "}",
+              "pm.test('Kassa havolasi muvaffaqiyatli berildi', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payments/checkout/{{order_id}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "payments",
+            "checkout",
+            "{{order_id}}"
+          ]
+        },
+        "description": "Buyurtma uchun Payme to'lov havolasini oladi. Havolani brauzerda ochib haqiqiy to'lovni bajarasiz."
+      }
+    },
+    {
+      "name": "7. Check Payment Status (after Payme payment)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const payment = res.data || res;",
+              "console.log('To\\'lov holati (status):', payment.status);",
+              "console.log('Payme holati (state):', payment.payme_state);",
+              "console.log('Payme tranzaksiya ID:', payment.payme_transaction_id);",
+              "",
+              "pm.test('Payment status is SUCCESSFUL', function () {",
+              "    pm.expect(payment.status).to.eql('SUCCESSFUL');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payments/status/{{order_id}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "payments",
+            "status",
+            "{{order_id}}"
+          ]
+        },
+        "description": "Mijoz Payme kassasida to'lovni tasdiqlagach, to'lov holatini tekshiradi. Holat `SUCCESSFUL` va `payme_state: PERFORMED` bo'lishi kerak."
+      }
+    },
+    {
+      "name": "8. Get Order Details (verify CONFIRMED)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const order = res.data || res;",
+              "console.log('Buyurtma holati:', order.status);",
+              "",
+              "pm.test('Buyurtma to\\'liq tasdiqlandi (CONFIRMED)', function () {",
+              "    pm.expect(order.status).to.eql('CONFIRMED');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/orders/{{order_id}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "orders",
+            "{{order_id}}"
+          ]
+        },
+        "description": "Buyurtmaning yakuniy holatini tekshiradi. To'lov o'tgach buyurtma `CONFIRMED` holatiga o'tadi."
+      }
+    }
+  ]
+}
