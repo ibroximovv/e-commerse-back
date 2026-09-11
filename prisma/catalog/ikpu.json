@@ -38,7 +38,7 @@
       "_search": "насос центробежный бытовой / насос водяной самовсасывающий",
       "_manba": "IKPU.xlsx: 'Насос водяной электрический центробежный PW250/PW370/PW550/PW1100', 'WZB300/WZB400/WZB750 смарт', 'XP300' satrlari - hammasi shu kod.",
       "ikpu_code": "08413001001003001",
-      "package_code": "",
+      "package_code": "1485163",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "8413 (насосы, кроме топливных/масляных для ДВС)"
@@ -50,7 +50,7 @@
       "_search": "насос погружной / насос дренажный",
       "_manba": "IKPU.xlsx: 'SUBMERSIBLE PUMP/Погружной насос QDX1,5-16-0,37(F)', 'Погружной насос QDX1,5-32-1,1', 'QDX40-6-1,1' satrlari.",
       "ikpu_code": "08413001001003001",
-      "package_code": "",
+      "package_code": "1485163",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "8413"
@@ -62,7 +62,7 @@
       "_search": "насос центробежный / насос самовсасывающий",
       "_manba": "IKPU.xlsx: 'Водяной насос канально-центробежный JET 750/1100 алюмин/копер', 'Центробежные одноступенчатый водяной насос JET750 / JETAUTO1100A' satrlari. QB va CPM ro'yxatda alohida yo'q, lekin ayni guruh (yer usti markazdan qochma nasos).",
       "ikpu_code": "08413001001003001",
-      "package_code": "",
+      "package_code": "1485163",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "8413"
@@ -74,7 +74,7 @@
       "_search": "реле давления / прибор автоматического регулирования давления",
       "_manba": "IKPU.xlsx: 'SWITCH Автоматический стаблизатор для водяных насосов' satri - nasos kodining o'zi berilgan (nasos aksessuari sifatida), 9032 EMAS. Shuning uchun _hs 09032 dan 08413 ga o'zgartirildi. Buxgalter 9032 ni ma'qul ko'rsa - _hs ni ham qaytaring.",
       "ikpu_code": "08413001001003001",
-      "package_code": "",
+      "package_code": "1485163",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "8413 (mijoz ro'yxati bo'yicha); muqobil - 9032 20 маностаты"
@@ -86,7 +86,7 @@
       "_search": "насос циркуляционный",
       "_manba": "IKPU.xlsx: 'Рециркуляционный, центрбежный водяной насос арт:25/6-180, 25/8-180, 32/6-180', 'Водяной насосы OCO Tech Power модел: 25/6-180' satrlari.",
       "ikpu_code": "08413001001003001",
-      "package_code": "",
+      "package_code": "1485163",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "8413"
@@ -98,7 +98,7 @@
       "_search": "бак стальной / резервуар металлический / гидроаккумулятор",
       "_manba": "IKPU.xlsx: 'PRESSURE TANK H-24L' va 'Рас. Бак Tank V-24L' satrlari -> 07310001001000000 'Цистерны, бочки, барабаны, канистры, ящики и аналогичные ёмкости, из черных металлов'. Bu 7310 (<=300 l), ya'ni 8-50 l baklarga to'g'ri keladi; rezina membrana kodi (4016) EMAS.",
       "ikpu_code": "07310001001000000",
-      "package_code": "",
+      "package_code": "1433393",
       "vat_percent": 0,
       "units": 241092,
       "_tif_tn": "7310 (<=300 l qora metall idish)"

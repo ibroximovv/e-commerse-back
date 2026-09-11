@@ -63,13 +63,12 @@ const CHECKOUT_URL =
 const RETURN_URL = process.env.PAYME_RETURN_URL ?? 'https://ocomarket.uz/orders';
 
 // Fiskal (IKPU) ma'lumotlari:
-// DIQQAT: `package_code` tasdiqlanmagan soxta son ('1508957') bo'lsa, Soliq OFD "Fiskal ma'lumotlar noto'g'ri"
-// xatosi bilan to'lovni bekor qiladi. Shuning uchun standart holatda null bo'ladi.
-// IKPU kodi sifatida bazaviy (oxiri 000000) universal kod ishlatiladi.
-const IKPU_CODE = option('ikpu') ?? '08413001001000000';
-const PACKAGE_CODE = option('package-code') ?? null;
+// Soliq OFD va Payme har bir tovar uchun MXIK (code) va qadoqlash kodi (package_code)ni talab qiladi.
+// '08413001001003001' (suv nasoslari) uchun tasnif.soliq.uz rasmiy qadoq kodi: '1485163' (dona).
+const IKPU_CODE = option('ikpu') ?? '08413001001003001';
+const PACKAGE_CODE = option('package-code') ?? '1485163';
 const VAT_PERCENT = option('vat') !== undefined ? Number(option('vat')) : 0;
-const UNITS = option('units') ? Number(option('units')) : null;
+const UNITS = option('units') ? Number(option('units')) : 241092;
 
 async function main() {
   console.log('='.repeat(70));
@@ -129,7 +128,7 @@ async function main() {
   // Avval bazadan mavjud aktiv kategoriyani tekshiramiz
   let category = await prisma.category.findFirst({
     where: { is_archived: false },
-    select: { id: true, name_uz: true, ikpu_code: true, vat_percent: true },
+    select: { id: true, name_uz: true, ikpu_code: true, package_code: true, vat_percent: true },
   });
 
   if (!category) {
@@ -145,15 +144,15 @@ async function main() {
         units: UNITS,
         is_archived: false,
       },
-      select: { id: true, name_uz: true, ikpu_code: true, vat_percent: true },
+      select: { id: true, name_uz: true, ikpu_code: true, package_code: true, vat_percent: true },
     });
-  } else {
+  } else if (PACKAGE_CODE && !category.package_code) {
     category = await prisma.category.update({
       where: { id: category.id },
       data: {
         package_code: PACKAGE_CODE,
       },
-      select: { id: true, name_uz: true, ikpu_code: true, vat_percent: true },
+      select: { id: true, name_uz: true, ikpu_code: true, package_code: true, vat_percent: true },
     });
   }
 
