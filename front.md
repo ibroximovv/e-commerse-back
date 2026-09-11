@@ -1,5 +1,18 @@
 # Frontend / Admin panel uchun o'zgarishlar
 
+> ## ⚠️ BU HUJJAT BO'LINDI VA YANGILANDI
+>
+> Client va adminka uchun endi alohida hujjatlar bor:
+>
+> - **Client (do'kon):** [docs/frontend-client.md](./docs/frontend-client.md)
+> - **Admin panel:** [docs/frontend-admin.md](./docs/frontend-admin.md)
+>
+> Bu faylda eskirgan joylar: fiskalizatsiya maydonlari bo'sh qolsa `.env` dagi
+> zaxira ishlatiladi deb yozilgan — **zaxira olib tashlangan**, va
+> `package_code`/`units` ixtiyoriy deyilgan — **`package_code` majburiy**
+> (bo'lmasa to'lov `-31008` bilan to'xtaydi). Shuningdek fiskal kodlarning
+> asosiy joyi endi `Product` emas, `Category`.
+
 Backend katalogga (OCO «Каталог 2026-III») moslashtirildi. Quyidagilar **buzuvchi
 o'zgarishlar** — frontendni yangilamasdan eski kod ishlamaydi.
 

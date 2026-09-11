@@ -1,5 +1,19 @@
 # Adminka uchun API qo'llanmasi (React)
 
+> ## ⚠️ BU HUJJAT ESKIRGAN
+>
+> Yozilgandan keyin backend jiddiy o'zgardi. Bu yerda **noto'g'ri** yozilgan
+> joylar: to'lov endpointi (`POST /api/payments` → `GET /api/payments/checkout/:order_id`),
+> fiskalizatsiya (`.env` dagi `PAYME_DEFAULT_*` → `Category`/`Product` maydonlari,
+> `package_code` endi majburiy), javob konverti (`message`/`meta` `null` emas —
+> umuman yo'q, va yangi `language` maydoni bor).
+>
+> **Joriy hujjat: [frontend-admin.md](./frontend-admin.md)**
+>
+> Bu fayl faqat tarix uchun qoldirilgan. Yangi ish uchun yuqoridagini o'qing.
+> React/TanStack Query namunalari (4 va 7-bo'limlar) hamon foydali — lekin
+> endpointlarni yangi hujjatdan tekshiring.
+
 Bu hujjat shu backend'ni React adminkasidan ishlatish uchun yozilgan: endpointlar,
 javob formati, autentifikatsiya oqimi va amaliy kod namunalari.
 
