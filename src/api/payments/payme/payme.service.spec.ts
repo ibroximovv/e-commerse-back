@@ -325,11 +325,10 @@ describe('PaymeService', () => {
       });
     });
 
-    it('sozlanmagan units va package_code umuman yuborilmaydi', async () => {
-      // `units: 0` yoki `package_code: ""` mavjud bo'lmagan kodlar - Payme
-      // ularni rad etadi, shuning uchun maydonning o'zi bo'lmasligi kerak
+    it('sozlanmagan units umuman yuborilmaydi', async () => {
+      // `units: 0` mavjud bo'lmagan kod - Payme uni rad etadi, shuning uchun
+      // maydonning o'zi bo'lmasligi kerak
       orderItems[0].product.category.units = null;
-      orderItems[0].product.category.package_code = null;
 
       const result: any = await call('CheckPerformTransaction', {
         account,
@@ -338,10 +337,22 @@ describe('PaymeService', () => {
 
       const item = result.detail.items[0];
       expect(item).not.toHaveProperty('units');
-      expect(item).not.toHaveProperty('package_code');
       // Majburiy maydonlar esa doim bo'lishi kerak
       expect(item.code).toBe('00702001001000000');
+      expect(item.package_code).toBe('1508957');
       expect(item.vat_percent).toBe(12);
+    });
+
+    it("package_code topilmasa to'lovga ruxsat bermaydi", async () => {
+      // Payme hujjatida `package_code` ixtiyoriy ko'rinadi, lekin uni
+      // yubormaslik OFD da "Невалидный тип поля: package_code" xatosini
+      // beradi. Shuning uchun pul yechilishidan OLDIN to'xtaymiz.
+      orderItems[0].product.category.package_code = null;
+
+      await expectPaymeError(
+        call('CheckPerformTransaction', { account, amount: AMOUNT }),
+        PaymeErrorCode.CANNOT_PERFORM,
+      );
     });
 
     it("kategoriyadagi vat_percent 0 bo'lsa 0 yuboriladi", async () => {

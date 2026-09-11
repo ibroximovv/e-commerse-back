@@ -26,6 +26,12 @@
     "  npm run db:set:ikpu ni qayta ishga tushiring - boshqa joyda",
     "  o'zgartirish kerak emas. Stavkani buxgalter bilan tasdiqlang.",
     "",
+    "package_code: MAJBURIY. Payme hujjatida ixtiyoriy ko'rinadi, lekin uni",
+    "  yubormasak OFD chekni rad etadi: -31222 / -32035 \"Невалидный тип",
+    "  поля: package_code\". Kod IKPU ga bog'liq, ro'yxatini oling:",
+    "    https://tasnif.soliq.uz/api/cls-api/mxik/get/package?mxikCode=<IKPU>",
+    "  Odatda \"дона / шт.\" satrini olasiz (nasoslar uchun 1485163).",
+    "",
     "units: dona = 241092.",
     "ikpu_code bo'sh qolsa - o'sha yozuv O'TKAZIB YUBORILADI (baza tegilmaydi).",
     "_ bilan boshlanadigan kalitlar e'tiborsiz qoladi ('_hs' dan tashqari)."

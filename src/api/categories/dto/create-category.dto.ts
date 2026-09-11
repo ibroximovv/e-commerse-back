@@ -100,7 +100,10 @@ export class CreateCategoryDto {
 
   @ApiPropertyOptional({
     example: '1501886',
-    description: "Qadoqlash kodi. Ixtiyoriy - berilmasa chekka qo'shilmaydi.",
+    description:
+      'Qadoqlash kodi (tasnif.soliq.uz da IKPU bilan birga beriladi). Payme ' +
+      "uchun MAJBURIY: yuborilmasa OFD chekni rad etadi va to'lov -31008 " +
+      "bilan to'xtaydi (mahsulotning o'zida kod bo'lmasa).",
   })
   @IsString()
   @IsOptional()

@@ -127,7 +127,15 @@ export class PaymeService implements OnModuleInit {
       const gaps = await this.prisma.category.findMany({
         where: {
           is_archived: false,
-          OR: [{ ikpu_code: null }, { ikpu_code: '' }, { vat_percent: null }],
+          OR: [
+            { ikpu_code: null },
+            { ikpu_code: '' },
+            { vat_percent: null },
+            // `package_code` ham majburiy: yubormasak OFD chekni
+            // "Невалидный тип поля: package_code" bilan rad etadi.
+            { package_code: null },
+            { package_code: '' },
+          ],
         },
         select: { name_ru: true, slug: true },
       });
@@ -164,7 +172,9 @@ export class PaymeService implements OnModuleInit {
     }
 
     if (!header?.startsWith('Basic ')) {
-      this.logger.warn("Payme avtorizatsiya rad etildi: 'Authorization: Basic ...' sarlavhasi yo'q");
+      this.logger.warn(
+        "Payme avtorizatsiya rad etildi: 'Authorization: Basic ...' sarlavhasi yo'q",
+      );
       throw PaymeError.insufficientPrivileges();
     }
 
@@ -172,14 +182,18 @@ export class PaymeService implements OnModuleInit {
     try {
       decoded = Buffer.from(header.slice(6).trim(), 'base64').toString('utf-8');
     } catch {
-      this.logger.warn("Payme avtorizatsiya rad etildi: base64 dekod qilib bo'lmadi");
+      this.logger.warn(
+        "Payme avtorizatsiya rad etildi: base64 dekod qilib bo'lmadi",
+      );
       throw PaymeError.insufficientPrivileges();
     }
 
     // Kalitning o'zida ham `:` bo'lishi mumkin - faqat birinchisidan bo'lamiz
     const separatorIndex = decoded.indexOf(':');
     if (separatorIndex < 0) {
-      this.logger.warn("Payme avtorizatsiya rad etildi: ':' ajratuvchi topilmadi");
+      this.logger.warn(
+        "Payme avtorizatsiya rad etildi: ':' ajratuvchi topilmadi",
+      );
       throw PaymeError.insufficientPrivileges();
     }
 

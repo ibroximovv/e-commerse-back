@@ -19,7 +19,14 @@ export interface PaymeReceiptItem {
   code: string;
   /** QQS foizi - MAJBURIY (0 ham to'g'ri qiymat). */
   vat_percent: number;
-  package_code?: string;
+  /**
+   * Qadoqlash kodi - Payme uchun MAJBURIY, garchi hujjatda ixtiyoriy
+   * ko'rinsa ham. Yubormasak OFD chekni rad etadi:
+   * `-31222 / -32035 "Невалидный тип поля: package_code"` (ya'ni `undefined`
+   * ham noto'g'ri tur). Kod IKPU ga bog'liq va tasnif.soliq.uz dan olinadi:
+   * `GET /api/cls-api/mxik/get/package?mxikCode=<IKPU>`.
+   */
+  package_code: string;
   /**
    * O'lchov birligi klassifikatori. Ixtiyoriy - sozlanmagan bo'lsa umuman
    * yuborilmaydi. `units: 0` yuborish xato bo'lardi: 0 mavjud bo'lmagan kod.
@@ -130,7 +137,14 @@ export function buildReceiptDetail(
         throw new MissingFiscalDataError(title, 'vat_percent');
       }
 
+      // `package_code` ham MAJBURIY. Ilgari u bo'sh bo'lsa maydon umuman
+      // yuborilmasdi, chunki `""` mavjud bo'lmagan kod. Lekin OFD maydonning
+      // o'zi yo'qligini ham xato deb hisoblaydi ("Невалидный тип поля:
+      // package_code"), shuning uchun bo'shini yubormaymiz ham, ruxsat ham
+      // bermaymiz - to'lovdan OLDIN to'xtaymiz.
       const packageCode = resolveText(product, category, 'package_code');
+      if (!packageCode) throw new MissingFiscalDataError(title, 'package_code');
+
       const units = resolveNumber(product, category, 'units');
 
       return {
@@ -139,9 +153,8 @@ export function buildReceiptDetail(
         count: line.quantity,
         code,
         vat_percent: vatPercent,
-        // Sozlanmagan ixtiyoriy maydonlarni umuman yubormaymiz:
-        // `package_code: ""` yoki `units: 0` - mavjud bo'lmagan kodlar
-        ...(packageCode ? { package_code: packageCode } : {}),
+        package_code: packageCode,
+        // `units: 0` - mavjud bo'lmagan kod, sozlanmagan bo'lsa yubormaymiz.
         ...(units ? { units } : {}),
         // Chegirma mahsulot narxining o'ziga singdirilgan (`price_at_purchase`
         // allaqachon yakuniy narx), shuning uchun alohida qator chegirmasi yo'q.
@@ -155,12 +168,13 @@ export function buildReceiptDetail(
 export class MissingFiscalDataError extends Error {
   constructor(
     readonly productTitle: string,
-    readonly field: 'ikpu_code' | 'vat_percent',
+    readonly field: 'ikpu_code' | 'vat_percent' | 'package_code',
   ) {
     super(
       `"${productTitle}" uchun ${field} topilmadi. Mahsulotning KATEGORIYASIGA ` +
         `${field} qo'ying (bir kategoriyadagi hamma mahsulot uni oladi), ` +
-        "yoki shu mahsulotning o'ziga alohida qiymat bering.",
+        "yoki shu mahsulotning o'ziga alohida qiymat bering. " +
+        "Kodlarni to'ldirish: prisma/catalog/ikpu.json + npm run db:set:ikpu",
     );
     this.name = 'MissingFiscalDataError';
   }

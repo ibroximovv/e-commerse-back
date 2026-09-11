@@ -52,7 +52,9 @@ export class PaymeController {
       );
       this.paymeService.authorize(authorization);
       const result = await this.paymeService.handle(body);
-      this.logger.log(`Payme webhook muvaffaqiyatli yakunlandi: method=${body?.method}`);
+      this.logger.log(
+        `Payme webhook muvaffaqiyatli yakunlandi: method=${body?.method}`,
+      );
       return { jsonrpc: JSONRPC_VERSION, id, result };
     } catch (error) {
       if (error instanceof PaymeError) {

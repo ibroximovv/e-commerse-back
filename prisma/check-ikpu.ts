@@ -2,9 +2,13 @@
  * Fiskal (IKPU) ma'lumotlari to'liqligini tekshiradi.
  *
  * Payme `CheckPerformTransaction` javobida har bir buyurtma qatori uchun MXIK
- * kodini va QQS stavkasini kutadi. Ular topilmasa to'lov `-31008` bilan rad
- * etiladi - ya'ni xato TO'LOV PAYTIDA, mijozning ko'z o'ngida chiqadi. Bu
- * skript o'sha bo'shliqni oldindan ko'rsatadi.
+ * kodini, `package_code` ni va QQS stavkasini kutadi. Ular topilmasa to'lov
+ * `-31008` bilan rad etiladi - ya'ni xato TO'LOV PAYTIDA, mijozning ko'z
+ * o'ngida chiqadi. Bu skript o'sha bo'shliqni oldindan ko'rsatadi.
+ *
+ * `package_code` hujjatda ixtiyoriy ko'rinadi, lekin uni yubormaslik OFD da
+ * "Невалидный тип поля: package_code" xatosini beradi - shuning uchun bu yerda
+ * ham majburiy.
  *
  * Qiymatlar qayerdan olinadi (shu tartibda):
  *   1. Product.ikpu_code / vat_percent / ...   - istisnolar uchun
@@ -72,6 +76,7 @@ async function main() {
   let blockedProducts = 0;
   let categoriesMissingIkpu = 0;
   let categoriesMissingVat = 0;
+  let categoriesMissingPackage = 0;
 
   for (const category of categories) {
     const items = products.filter((p) => p.category_id === category.id);
@@ -86,11 +91,13 @@ async function main() {
 
     const catIkpu = category.ikpu_code?.trim() ?? '';
     const catVat = category.vat_percent;
+    const catPackage = category.package_code?.trim() ?? '';
 
     if (!catIkpu) categoriesMissingIkpu++;
     if (catVat === null) categoriesMissingVat++;
+    if (!catPackage) categoriesMissingPackage++;
 
-    const catOk = catIkpu && catVat !== null;
+    const catOk = catIkpu && catVat !== null && catPackage;
 
     console.log(
       `${catOk ? '✅' : '⚠️ '} ${title} — ${items.length} ta mahsulot`,
@@ -107,7 +114,10 @@ async function main() {
     for (const item of items) {
       const ikpu = item.ikpu_code?.trim() || catIkpu;
       const vat = item.vat_percent ?? catVat;
-      const blocked = !ikpu || vat === null;
+      // `package_code` ham to'lovni to'xtatadi: u yuborilmasa OFD chekni
+      // "Невалидный тип поля: package_code" bilan rad etadi.
+      const pkg = item.package_code?.trim() || catPackage;
+      const blocked = !ikpu || vat === null || !pkg;
 
       if (blocked) blockedProducts++;
 
@@ -138,13 +148,15 @@ async function main() {
   console.log(`  mahsulot                     : ${products.length}`);
   console.log(`  IKPU'siz kategoriya          : ${categoriesMissingIkpu}`);
   console.log(`  QQS stavkasisiz kategoriya   : ${categoriesMissingVat}`);
+  console.log(`  package_code'siz kategoriya  : ${categoriesMissingPackage}`);
   console.log(`  to'lab bo'lmaydigan mahsulot : ${blockedProducts}`);
   console.log('');
 
   if (blockedProducts > 0) {
     console.error(
       `❌ ${blockedProducts} ta mahsulotni to'lay olmaysiz (-31008): na ` +
-        "mahsulotda, na uning kategoriyasida IKPU yoki QQS stavkasi bor.",
+        'mahsulotda, na uning kategoriyasida IKPU, QQS stavkasi yoki ' +
+        'package_code bor.',
     );
     console.error(
       "   Yechim: kategoriyani to'ldiring - ichidagi hamma mahsulot shuni oladi.",
@@ -154,7 +166,9 @@ async function main() {
     return;
   }
 
-  console.log("✅ Har bir mahsulot uchun IKPU va QQS stavkasi topiladi.");
+  console.log(
+    "✅ Har bir mahsulot uchun IKPU, package_code va QQS stavkasi topiladi.",
+  );
 }
 
 main()

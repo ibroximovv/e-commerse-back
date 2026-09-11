@@ -10,7 +10,7 @@ ma'lumotlarini bizdan so'raydi. Kod bo'lmasa to'lov `-31008` bilan rad etiladi
 | :-- | :-- | :-- | :-- |
 | `ikpu_code` | MXIK / IKPU — tovar klassifikatori (17 xona) | `00702001001000000` | ✅ ha |
 | `vat_percent` | QQS stavkasi foizda | `12` yoki `0` | ✅ ha (0 ham qiymat) |
-| `package_code` | Qadoqlash / birlik kodi | `1508957` | ❌ bo'sh bo'lsa yuborilmaydi |
+| `package_code` | Qadoqlash / birlik kodi | `1485163` | ✅ ha (pastga qarang) |
 | `units` | O'lchov birligi kodi (dona = `241092`) | `241092` | ❌ bo'sh bo'lsa yuborilmaydi |
 
 ## Qiymatlar KATEGORIYADA turadi
@@ -40,7 +40,18 @@ Product.ikpu_code   bor  →  o'shani ishlatadi   (faqat ISTISNO uchun)
 2. Chiqqan ro'yxatdan tovaringizga eng mos qatorni tanlang → **17 xonali MXIK
    kodi** ko'rinadi.
 3. Kod tanlangach o'sha sahifada **qadoqlash turlari** (`package_code`) ro'yxati
-   chiqadi — o'zingiznikini tanlang (odatda «дона / штука»).
+   chiqadi — o'zingiznikini tanlang (odatda «дона / штука»). Xuddi shu ro'yxatni
+   to'g'ridan-to'g'ri ham olish mumkin:
+
+   ```bash
+   curl "https://tasnif.soliq.uz/api/cls-api/mxik/get/package?mxikCode=08413001001003001"
+   # -> {"code":1485163, "nameRu":"шт. (коробка)", ...}
+   ```
+
+   > ⚠️ `package_code` Payme hujjatida ixtiyoriy ko'rinadi, lekin **majburiy**:
+   > uni yubormasak OFD chekni `-31222` / `-32035 "Невалидный тип поля:
+   > package_code"` bilan rad etadi. O'ylab topilgan raqam ham xato beradi —
+   > faqat shu ro'yxatdagi kodni oling.
 4. `units` — o'lchov birligi; dona uchun `241092`.
 5. `vat_percent` — **buxgalteringizdan so'rang**: QQS to'lovchisi bo'lsangiz `12`,
    bo'lmasangiz `0`.

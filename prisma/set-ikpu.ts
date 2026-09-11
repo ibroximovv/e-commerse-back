@@ -110,7 +110,24 @@ function validate(label: string, entry: FiscalEntry): Resolved | null {
     return null;
   }
 
+  // `package_code` Payme uchun MAJBURIY: yubormasak OFD chekni
+  // "Невалидный тип поля: package_code" bilan rad etadi. Kod IKPU ga bog'liq,
+  // uni tasnif.soliq.uz dan olish mumkin:
+  //   https://tasnif.soliq.uz/api/cls-api/mxik/get/package?mxikCode=<IKPU>
   const pkg = (entry.package_code ?? '').trim();
+  if (!pkg) {
+    errors.push(
+      `${label}: package_code ko'rsatilmagan. Payme'ga uni yubormasak chek ` +
+        'rad etiladi ("Невалидный тип поля: package_code"). Kodni oling: ' +
+        `https://tasnif.soliq.uz/api/cls-api/mxik/get/package?mxikCode=${ikpu}`,
+    );
+    return null;
+  }
+  if (!/^\d+$/.test(pkg)) {
+    errors.push(`${label}: package_code "${pkg}" - faqat raqamlardan iborat`);
+    return null;
+  }
+
   const units = entry.units;
 
   if (units !== undefined && units !== null && !Number.isInteger(units)) {
@@ -120,9 +137,7 @@ function validate(label: string, entry: FiscalEntry): Resolved | null {
 
   return {
     ikpu_code: ikpu,
-    // Bo'sh satr va 0 - mavjud bo'lmagan klassifikatorlar. Ularni `null`
-    // qilamiz, chunki chek quruvchi `null` ni umuman yubormaydi.
-    package_code: pkg || null,
+    package_code: pkg,
     vat_percent: vat,
     units: units || null,
   };

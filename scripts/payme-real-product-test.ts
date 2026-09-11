@@ -57,6 +57,11 @@ const RETURN_URL = process.env.PAYME_RETURN_URL ?? 'https://ocomarket.uz/orders'
 // Fiskal ma'lumotlar: ikpu.json dagi tasdiqlangan parametrlar
 const CATEGORY_SLUG = 'poverhnostnye-nasosy';
 const IKPU_CODE = option('ikpu') ?? '08413001001003001';
+// Qadoqlash kodi MAJBURIY: yubormasak OFD chekni "Невалидный тип поля:
+// package_code" bilan rad etadi. '1485163' - shu IKPU uchun tasnif.soliq.uz
+// dagi yagona kod ("дона (қути)" / "шт. (коробка)"):
+//   https://tasnif.soliq.uz/api/cls-api/mxik/get/package?mxikCode=08413001001003001
+const PACKAGE_CODE = option('package-code') ?? '1485163';
 const VAT_PERCENT = option('vat') !== undefined ? Number(option('vat')) : 0;
 const UNITS = 241092; // dona
 
@@ -81,7 +86,7 @@ async function main() {
         name_en: 'Surface pumps',
         slug: CATEGORY_SLUG,
         ikpu_code: IKPU_CODE,
-        package_code: null, // Bo'sh bo'lishi shart! Soxta kod xato beradi
+        package_code: PACKAGE_CODE,
         vat_percent: VAT_PERCENT,
         units: UNITS,
         is_archived: false,
@@ -94,7 +99,7 @@ async function main() {
       where: { id: category.id },
       data: {
         ikpu_code: IKPU_CODE,
-        package_code: null, // Noto'g'ri package_code bo'lsa tozalanadi
+        package_code: PACKAGE_CODE,
         vat_percent: VAT_PERCENT,
         units: UNITS,
         is_archived: false,
@@ -106,7 +111,7 @@ async function main() {
   console.log(`     - IKPU/MXIK : ${category.ikpu_code}`);
   console.log(`     - QQS (VAT) : ${category.vat_percent}%`);
   console.log(`     - Units     : ${category.units} (dona)`);
-  console.log(`     - Package   : null (ixtiyoriy, xavfsiz)`);
+  console.log(`     - Package   : ${category.package_code} (MAJBURIY)`);
 
   // 2. Shu kategoriyadagi tovar narxini 2000 so'mga o'zgartirish
   console.log(`\n[2/4] Tovar narxini sozlash...`);
@@ -141,7 +146,8 @@ async function main() {
         stock: 100,
         price_on_request: false,
         is_archived: false,
-        package_code: null,
+        // Mahsulotda bo'sh - kategoriyanikini oladi (normal holat).
+      package_code: null,
       },
     });
   }
@@ -154,7 +160,8 @@ async function main() {
         price: 0,
         final_price: 0,
         price_on_request: true,
-        package_code: null,
+        // Mahsulotda bo'sh - kategoriyanikini oladi (normal holat).
+      package_code: null,
       },
     });
     console.log(`  🔄 Mahsulot (${product.name_ru}) narxi asl holatiga qaytarildi (narx kelishuv asosida).`);
@@ -171,6 +178,7 @@ async function main() {
       price_on_request: false, // Sotib olish mumkin bo'lishi uchun
       stock: 100,
       is_archived: false,
+      // Mahsulotda bo'sh - kategoriyanikini oladi (normal holat).
       package_code: null,
     },
   });
