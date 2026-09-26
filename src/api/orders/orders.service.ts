@@ -32,7 +32,7 @@ const ALLOWED_ORDER_SORT_FIELDS = [
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async checkout(userId: string, dto?: CheckoutDto) {
     // Execute all database calls inside an atomic Prisma Transaction
@@ -58,7 +58,7 @@ export class OrdersService {
 
       // 2. Validate stock and prepare order items
       for (const item of cart.items) {
-        const product = item.product;
+        const product: any = item.product;
         if (product.is_archived) {
           throw new BadRequestException(
             `Product "${product.name_uz}" is archived and cannot be ordered`,
