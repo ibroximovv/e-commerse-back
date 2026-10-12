@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { round2 } from '../products/products.pricing';
+import { roundSom } from '../../common/utils/money.util';
 
 @Injectable()
 export class CartsService {
@@ -39,9 +39,9 @@ export class CartsService {
       ...cart,
       totals: {
         items_count: itemsCount,
-        subtotal: round2(subtotal),
-        original_total: round2(originalTotal),
-        discount_total: round2(originalTotal - subtotal),
+        subtotal: roundSom(subtotal),
+        original_total: roundSom(originalTotal),
+        discount_total: roundSom(originalTotal - subtotal),
       },
     };
   }

@@ -38,41 +38,23 @@ export const translations: Record<string, Record<string, string>> = {
       "O'z hisobingizdan ADMIN rolini olib tashlay olmaysiz.",
     'Cannot remove the last ADMIN account. Promote another user to ADMIN first':
       "Oxirgi ADMIN hisobini olib tashlab bo'lmaydi. Avval boshqa foydalanuvchini ADMIN qiling.",
-    'If the account exists, a password reset code has been sent':
-      "Agar bunday hisob mavjud bo'lsa, parolni tiklash kodi yuborildi.",
     'Cart is empty': "Savat bo'sh.",
 
     // Errors & Messages
     Unauthorized: 'Ruxsat berilmagan. Iltimos, tizimga kiring.',
     'Forbidden resource': 'Ushbu resursga kirish siz uchun taqiqlangan.',
-    'Invalid verification code': "Tasdiqlash kodi noto'g'ri.",
-    'Verification code expired':
-      'Tasdiqlash kodining amal qilish muddati tugagan.',
-    'Code sent successfully': 'Tasdiqlash kodi muvaffaqiyatli yuborildi.',
-    'Email already verified':
-      'Elektron pochta manzili allaqachon tasdiqlangan.',
-    'Please wait 1 minute before resending':
-      'Kodni qayta yuborishdan oldin 1 daqiqa kuting.',
     'User not found': 'Foydalanuvchi topilmadi.',
-    'Invalid credentials': "Email yoki parol noto'g'ri.",
-    'Email already registered':
-      "Ushbu email manzili allaqachon ro'yxatdan o'tgan.",
-    'Verification code is invalid or expired':
-      "Tasdiqlash kodi noto'g'ri yoki muddati tugagan.",
-    'Account not verified':
-      'Hisobingiz hali tasdiqlanmagan. Iltimos, emailni tasdiqlang.',
+
+    'Invalid credentials': "Telefon raqami yoki ism noto'g'ri.",
+    'Phone number already registered':
+      "Bu telefon raqami allaqachon ro'yxatdan o'tgan. Iltimos, tizimga kiring.",
+    'Invalid phone number': "Telefon raqami noto'g'ri.",
+    'Full name is required': 'Ism kiritilishi shart.',
+    'Too many login attempts. Please try again later':
+      "Juda ko'p urinish. Iltimos, birozdan so'ng qayta urinib ko'ring.",
     'Password changed successfully': "Parol muvaffaqiyatli o'zgartirildi.",
     'Old password incorrect': "Eski parol noto'g'ri.",
-    'Verification code sent to email':
-      'Tasdiqlash kodi elektron pochtangizga yuborildi.',
-    'Email verified successfully':
-      'Elektron pochta muvaffaqiyatli tasdiqlandi.',
-    'Too many invalid attempts. Please request a new code':
-      "Juda ko'p noto'g'ri urinish. Iltimos, yangi kod so'rang.",
     'Invalid refresh token': 'Refresh token yaroqsiz.',
-    'Password reset code sent to email':
-      'Parolni tiklash kodi elektron pochtangizga yuborildi.',
-    'Password reset successfully': 'Parol muvaffaqiyatli tiklandi.',
     'Logged out successfully': 'Tizimdan muvaffaqiyatli chiqildi.',
     'File uploaded successfully': 'Fayl muvaffaqiyatli yuklandi.',
     'File deleted successfully': "Fayl muvaffaqiyatli o'chirildi.",
@@ -116,38 +98,23 @@ export const translations: Record<string, Record<string, string>> = {
       'Вы не можете снять роль ADMIN со своей учётной записи.',
     'Cannot remove the last ADMIN account. Promote another user to ADMIN first':
       'Нельзя убрать последнюю учётную запись ADMIN. Сначала назначьте администратором другого пользователя.',
-    'If the account exists, a password reset code has been sent':
-      'Если такая учётная запись существует, код для сброса пароля отправлен.',
     'Cart is empty': 'Корзина пуста.',
 
     // Errors & Messages
     Unauthorized: 'Не авторизован. Пожалуйста, войдите в систему.',
     'Forbidden resource': 'Доступ к этому ресурсу запрещен.',
-    'Invalid verification code': 'Неверный код подтверждения.',
-    'Verification code expired': 'Срок действия кода подтверждения истек.',
-    'Code sent successfully': 'Код подтверждения успешно отправлен.',
-    'Email already verified': 'Электронная почта уже подтверждена.',
-    'Please wait 1 minute before resending':
-      'Подождите 1 минуту перед повторной отправкой.',
     'User not found': 'Пользователь не найден.',
-    'Invalid credentials': 'Неверный email или пароль.',
-    'Email already registered':
-      'Этот адрес электронной почты уже зарегистрирован.',
-    'Verification code is invalid or expired':
-      'Код подтверждения недействителен или истек.',
-    'Account not verified':
-      'Аккаунт не подтвержден. Пожалуйста, подтвердите почту.',
+
+    'Invalid credentials': 'Неверный номер телефона или имя.',
+    'Phone number already registered':
+      'Этот номер телефона уже зарегистрирован. Пожалуйста, войдите.',
+    'Invalid phone number': 'Неверный номер телефона.',
+    'Full name is required': 'Укажите имя.',
+    'Too many login attempts. Please try again later':
+      'Слишком много попыток входа. Повторите попытку позже.',
     'Password changed successfully': 'Пароль успешно изменен.',
     'Old password incorrect': 'Неверный старый пароль.',
-    'Verification code sent to email':
-      'Код подтверждения отправлен на вашу почту.',
-    'Email verified successfully': 'Электронная почта успешно подтверждена.',
-    'Too many invalid attempts. Please request a new code':
-      'Слишком много неверных попыток. Пожалуйста, запросите новый код.',
     'Invalid refresh token': 'Недействительный refresh token.',
-    'Password reset code sent to email':
-      'Код для сброса пароля отправлен на вашу почту.',
-    'Password reset successfully': 'Пароль успешно сброшен.',
     'Logged out successfully': 'Вы успешно вышли из системы.',
     'File uploaded successfully': 'Файл успешно загружен.',
     'File deleted successfully': 'Файл успешно удален.',

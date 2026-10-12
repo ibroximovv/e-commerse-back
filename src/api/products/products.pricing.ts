@@ -1,3 +1,5 @@
+import { roundSom } from '../../common/utils/money.util';
+
 /**
  * Mahsulotning hosila (derived) maydonlarini bir joyda hisoblaydi.
  *
@@ -22,10 +24,16 @@ export interface PriceFields {
   discount_percent: number;
 }
 
+/** Narxlar butun so'mda (UZS) - qarang `money.util.ts`. */
 export function computePriceFields(
-  price: number,
-  discountPrice?: number | null,
+  rawPrice: number,
+  rawDiscountPrice?: number | null,
 ): PriceFields {
+  const price = roundSom(rawPrice);
+  const discountPrice =
+    rawDiscountPrice === null || rawDiscountPrice === undefined
+      ? rawDiscountPrice
+      : roundSom(rawDiscountPrice);
   const hasDiscount =
     discountPrice !== null &&
     discountPrice !== undefined &&
@@ -39,7 +47,7 @@ export function computePriceFields(
       : 0;
 
   return {
-    final_price: round2(finalPrice),
+    final_price: roundSom(finalPrice),
     discount_percent: discountPercent,
   };
 }

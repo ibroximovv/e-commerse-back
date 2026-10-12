@@ -1,13 +1,19 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { BaseService } from '../../common/services/base.service';
 import { PrismaService } from '../../database/prisma.service';
 import { User, Prisma, Role } from '@prisma/client';
 import { UsersQueryDto } from './dto/users-query.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { cleanFullName, normalizePhone } from '../../common/utils/phone.util';
 
 const ALLOWED_USER_SORT_FIELDS = [
   'created_at',
   'updated_at',
-  'email',
+  'phone',
   'full_name',
   'role',
 ] as const;
@@ -22,10 +28,40 @@ export class UsersService extends BaseService<
     super(prisma, 'User');
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
-    });
+  async findByPhone(phone: string): Promise<User | null> {
+    const normalized = normalizePhone(phone);
+    if (!normalized) return null;
+    return this.prisma.user.findFirst({ where: { phone: normalized } });
+  }
+
+  /**
+   * Profilni yangilaydi. Telefon login kaliti bo'lgani uchun normallashtiriladi
+   * va unikalligi tekshiriladi (bazada `@unique` yo'q - sababi schema'da).
+   */
+  async updateUser(id: string, dto: UpdateUserDto): Promise<User> {
+    const data: Prisma.UserUpdateInput = {
+      photo: dto.photo,
+      language: dto.language,
+    };
+
+    if (dto.full_name !== undefined) {
+      const fullName = cleanFullName(dto.full_name);
+      if (!fullName) throw new BadRequestException('Full name is required');
+      data.full_name = fullName;
+    }
+
+    if (dto.phone !== undefined) {
+      const phone = normalizePhone(dto.phone);
+      if (!phone) throw new BadRequestException('Invalid phone number');
+
+      const owner = await this.prisma.user.findFirst({ where: { phone } });
+      if (owner && owner.id !== id) {
+        throw new ConflictException('Phone number already registered');
+      }
+      data.phone = phone;
+    }
+
+    return this.update(id, data);
   }
 
   async search(query: UsersQueryDto) {
@@ -42,7 +78,6 @@ export class UsersService extends BaseService<
     if (query.search) {
       const term = query.search.trim();
       where.OR = [
-        { email: { contains: term, mode: 'insensitive' } },
         { full_name: { contains: term, mode: 'insensitive' } },
         { phone: { contains: term, mode: 'insensitive' } },
       ];
@@ -129,15 +164,13 @@ export class UsersService extends BaseService<
   }
 
   async getStats() {
-    const [total, verified, admins] = await Promise.all([
+    const [total, admins] = await Promise.all([
       this.prisma.user.count(),
-      this.prisma.user.count({ where: { is_verified: true } }),
       this.prisma.user.count({ where: { role: Role.ADMIN } }),
     ]);
 
     return {
       total_users: total,
-      verified_users: verified,
       admins_count: admins,
       regular_users: total - admins,
     };

@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -120,12 +119,12 @@ export class CreateProductDto {
   tags?: string[];
 
   @ApiPropertyOptional({
-    example: 999.99,
+    example: 1250000,
     description:
-      "Asosiy (chegirmasiz) narx. `price_on_request: true` bo'lsa yuborilmasligi mumkin - 0 bo'lib saqlanadi.",
+      "Asosiy (chegirmasiz) narx, BUTUN SO'MDA (UZS, tiyinsiz). `price_on_request: true` bo'lsa yuborilmasligi mumkin - 0 bo'lib saqlanadi.",
   })
   @ValidateIf((dto: CreateProductDto) => dto.price_on_request !== true)
-  @IsNumber()
+  @IsInt()
   @Min(0)
   price: number;
 
@@ -141,11 +140,11 @@ export class CreateProductDto {
   price_on_request?: boolean;
 
   @ApiPropertyOptional({
-    example: 849.99,
+    example: 990000,
     description:
-      "Aksiya narxi. `price` dan kichik bo'lishi shart. Chegirmani bekor qilish uchun `null` yuboring.",
+      "Aksiya narxi, butun so'mda. `price` dan kichik bo'lishi shart. Chegirmani bekor qilish uchun `null` yuboring.",
   })
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @IsOptional()
   discount_price?: number | null;

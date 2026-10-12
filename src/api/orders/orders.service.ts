@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { OrderStatus, Prisma } from '@prisma/client';
-import { POPULARITY_WEIGHTS, round2 } from '../products/products.pricing';
+import { POPULARITY_WEIGHTS } from '../products/products.pricing';
+import { roundSom } from '../../common/utils/money.util';
 import { CheckoutDto } from './dto/checkout.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 
@@ -32,7 +33,7 @@ const ALLOWED_ORDER_SORT_FIELDS = [
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async checkout(userId: string, dto?: CheckoutDto) {
     // Execute all database calls inside an atomic Prisma Transaction
@@ -52,6 +53,13 @@ export class OrdersService {
       if (!cart || cart.items.length === 0) {
         throw new BadRequestException('Cart is empty');
       }
+
+      // Qabul qiluvchi ko'rsatilmasa - profildagi ism/telefon. Ro'yxatdan
+      // o'tishda ikkalasi ham olingan, mijozdan qayta so'rash shart emas.
+      const buyer = await tx.user.findUnique({
+        where: { id: userId },
+        select: { full_name: true, phone: true },
+      });
 
       let totalAmount = 0;
       const orderItemsData: any[] = [];
@@ -95,7 +103,7 @@ export class OrdersService {
         });
 
         // Chegirma hisobga olingan yakuniy narx bilan sotamiz
-        const unitPrice = product.final_price || product.price;
+        const unitPrice = roundSom(product.final_price || product.price);
 
         totalAmount += unitPrice * item.quantity;
         orderItemsData.push({
@@ -109,11 +117,11 @@ export class OrdersService {
       const order = await tx.order.create({
         data: {
           user_id: userId,
-          total_amount: round2(totalAmount),
+          total_amount: roundSom(totalAmount),
           status: OrderStatus.PENDING,
           shipping_address: dto?.shipping_address ?? null,
-          customer_phone: dto?.customer_phone ?? null,
-          customer_name: dto?.customer_name ?? null,
+          customer_phone: dto?.customer_phone || buyer?.phone || null,
+          customer_name: dto?.customer_name || buyer?.full_name || null,
           notes: dto?.notes ?? null,
           payment_method: dto?.payment_method ?? null,
           items: {
@@ -341,7 +349,7 @@ export class OrdersService {
         { customer_name: { contains: term, mode: 'insensitive' } },
         { customer_phone: { contains: term, mode: 'insensitive' } },
         { shipping_address: { contains: term, mode: 'insensitive' } },
-        { user: { email: { contains: term, mode: 'insensitive' } } },
+        { user: { phone: { contains: term, mode: 'insensitive' } } },
         { user: { full_name: { contains: term, mode: 'insensitive' } } },
       ];
     }

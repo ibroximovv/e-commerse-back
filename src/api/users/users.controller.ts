@@ -61,7 +61,7 @@ export class UsersController {
     @CurrentUser('sub') userId: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(userId, updateUserDto);
+    return this.usersService.updateUser(userId, updateUserDto);
   }
 
   @Patch(':id/role')
@@ -81,7 +81,7 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Update user by ID (Admin only)' })
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+    return this.usersService.updateUser(id, updateUserDto);
   }
 
   @Delete(':id')

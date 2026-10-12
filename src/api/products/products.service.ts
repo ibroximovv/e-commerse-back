@@ -8,6 +8,7 @@ import { BaseService } from '../../common/services/base.service';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, Product } from '@prisma/client';
 import { CategoriesService } from '../categories/categories.service';
+import { roundSom } from '../../common/utils/money.util';
 import { generateUniqueSlug, slugify } from '../../common/utils/slug.util';
 import {
   DEFAULT_LANGUAGE,
@@ -126,8 +127,9 @@ export class ProductsService extends BaseService<
 
     // "Narx kelishilgan holda" tovarda narx ham, chegirma ham saqlanmaydi
     const onRequest = price_on_request ?? false;
-    const nextPrice = onRequest ? 0 : price;
-    const nextDiscount = onRequest ? null : (discount_price ?? null);
+    const nextPrice = onRequest ? 0 : roundSom(price);
+    const nextDiscount =
+      onRequest || discount_price == null ? null : roundSom(discount_price);
     this.assertDiscountValid(nextPrice, nextDiscount);
 
     const normalizedSku = normalizeSku(sku);
@@ -177,12 +179,11 @@ export class ProductsService extends BaseService<
 
     // Narx yoki chegirma o'zgarsa - ikkalasini ham qayta baholaymiz
     const onRequest = price_on_request ?? current.price_on_request;
-    const nextPrice = onRequest ? 0 : (price ?? current.price);
-    const nextDiscount = onRequest
-      ? null
-      : discount_price !== undefined
-        ? discount_price
-        : current.discount_price;
+    const nextPrice = onRequest ? 0 : roundSom(price ?? current.price);
+    const rawDiscount =
+      discount_price !== undefined ? discount_price : current.discount_price;
+    const nextDiscount =
+      onRequest || rawDiscount == null ? null : roundSom(rawDiscount);
     this.assertDiscountValid(nextPrice, nextDiscount);
 
     const data: Prisma.ProductUncheckedUpdateInput = {

@@ -124,16 +124,20 @@ Bo'sh tilni ko'rsatib "tarjima qilinmagan" belgisini chiqarishingiz mumkin.
 ## 3. Autentifikatsiya va rollar
 
 ```
-POST /api/auth/login    { email, password }  → { user, access_token, refresh_token }
+POST /api/auth/login    { phone, password }  → { user, access_token, refresh_token }
 POST /api/auth/refresh  { refresh_token }
+POST /api/auth/change-password  { old_password, new_password }   (faqat ADMIN)
 ```
+
+> Email/OTP olib tashlandi — batafsil: [front-changes-phone-auth.md](./front-changes-phone-auth.md)
 
 Barcha admin so'rovlarida: `Authorization: Bearer <access_token>`.
 
 - Rollar: `ADMIN` | `USER`. Admin endpointlar `JwtAuthGuard` + `RolesGuard`
   bilan himoyalangan — `USER` token bilan `403`.
-- Login qilishdan oldin `is_verified: true` bo'lishi shart, aks holda `403`.
-- Admin hisobi faqat seed orqali yaratiladi: `npx prisma db seed`.
+- ADMIN telefon + **parol** bilan kiradi (oddiy mijoz — telefon + ism).
+- Admin hisobi seed yoki `npm run db:create-admin -- --phone=... --password=...`
+  orqali yaratiladi.
 - Tokenlar **stateless** — `logout` serverda hech nima o'chirmaydi.
 
 `ProtectedRoute` da `user.role === 'ADMIN'` tekshiring, aks holda backend
@@ -511,7 +515,7 @@ To'lov yozuvi:
   "payme_perform_time": 1772000060000,
   "payme_cancel_time": null,
   "payme_reason": null,
-  "order": { "…": "…", "user": { "id": "…", "email": "…", "full_name": "…" } }
+  "order": { "…": "…", "user": { "id": "…", "full_name": "…", "phone": "…" } }
 }
 ```
 

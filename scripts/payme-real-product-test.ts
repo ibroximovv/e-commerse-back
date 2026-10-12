@@ -9,9 +9,12 @@
  *   npm run payme:real-test -- --restore      # Testdan so'ng tovar narxini tiklash (price_on_request: true)
  */
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { buildPaymeCheckoutUrl } from '../src/api/payments/payme/payme.constants';
+import {
+  cleanFullName,
+  normalizePhone,
+} from '../src/common/utils/phone.util';
 
 const OrderStatus = {
   PENDING: 'PENDING',
@@ -41,8 +44,8 @@ function option(name: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
-const EMAIL = (option('email') ?? 'user@gmail.com').toLowerCase().trim();
-const PASSWORD = option('password') ?? 'Password123!';
+const PHONE = normalizePhone(option('phone') ?? '+998901234567');
+const FULL_NAME = cleanFullName(option('name') ?? 'Test Xaridor');
 const TARGET_PRICE = 2000;
 const RESTORE = flag('restore');
 
@@ -189,28 +192,24 @@ async function main() {
   console.log(`     - Narxi     : ${product.price} so'm`);
   console.log(`     - Stock     : ${product.stock} dona`);
 
-  // 3. user@gmail.com ni tayyorlash
-  console.log(`\n[3/4] Xaridor foydalanuvchisi (${EMAIL})...`);
-  const hashedPassword = await bcrypt.hash(PASSWORD, 10);
-  const user = await prisma.user.upsert({
-    where: { email: EMAIL },
-    update: {
-      password: hashedPassword,
-      is_verified: true,
-      role: Role.USER as any,
-      language: 'uz',
-    },
-    create: {
-      email: EMAIL,
-      password: hashedPassword,
-      full_name: 'Test Xaridor',
-      phone: '+998901234567',
-      is_verified: true,
-      role: Role.USER as any,
-      language: 'uz',
-    },
-  });
-  console.log(`  ✅ User tayyor (${user.email} / ${PASSWORD})`);
+  // 3. Xaridorni tayyorlash (saytga telefon + ism bilan kiriladi)
+  console.log(`\n[3/4] Xaridor foydalanuvchisi (${PHONE})...`);
+  if (!PHONE) throw new Error("--phone noto'g'ri");
+  const existing = await prisma.user.findFirst({ where: { phone: PHONE } });
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: { full_name: FULL_NAME, language: 'uz' },
+      })
+    : await prisma.user.create({
+        data: {
+          phone: PHONE,
+          full_name: FULL_NAME,
+          role: Role.USER as any,
+          language: 'uz',
+        },
+      });
+  console.log(`  ✅ User tayyor (${user.phone} / ${user.full_name})`);
 
   // 4. Buyurtma yaratish va Payme havolasini chiqarish
   console.log(`\n[4/4] 2000 so'mlik haqiqiy buyurtma va Payme havolasini yaratish...`);

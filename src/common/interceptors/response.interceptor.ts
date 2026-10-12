@@ -13,6 +13,7 @@ import {
   resolveRequestLanguage,
 } from '../i18n/request-language';
 import { RAW_RESPONSE_KEY } from '../decorators/raw-response.decorator';
+import { CURRENCY } from '../utils/money.util';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -21,6 +22,8 @@ export interface ApiResponse<T> {
   meta?: any;
   /** Javob qaysi tilda qaytganini frontend keshlashda ishlatadi. */
   language: Lang;
+  /** Barcha summalar shu valyutada, butun son: `UZS` (so'm). */
+  currency: typeof CURRENCY;
 }
 
 /**
@@ -64,6 +67,7 @@ export class ResponseInterceptor<T> implements NestInterceptor<
           message: shaped.message ? translate(shaped.message, lang) : undefined,
           meta: shaped.meta,
           language: lang,
+          currency: CURRENCY,
         };
       }),
     );

@@ -1,13 +1,17 @@
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsIn, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateUserDto {
-  @ApiPropertyOptional({ example: 'John Doe' })
+  @ApiPropertyOptional({ example: 'Aziza Karimova' })
   @IsString()
   @IsOptional()
+  @MaxLength(100)
   full_name?: string;
 
-  @ApiPropertyOptional({ example: '+998901234567' })
+  @ApiPropertyOptional({
+    example: '+998901234567',
+    description: "Login kaliti. Boshqa foydalanuvchida bo'lsa 409.",
+  })
   @IsString()
   @IsOptional()
   phone?: string;

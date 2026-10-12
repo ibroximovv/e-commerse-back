@@ -2,22 +2,25 @@
  * Production Payme to'lovini haqiqiy karta bilan test qilish uchun skript.
  *
  * Vazifasi:
- * 1. user@gmail.com test foydalanuvchisini yaratadi (yoki parolini yangilaydi),
- *    `is_verified: true` qiladi (OTP kodi so'ramasdan login qilish uchun).
+ * 1. Test foydalanuvchisini telefon + ism bilan yaratadi (yoki topadi) - saytga
+ *    shu ikkisi bilan kiriladi.
  * 2. 2000 so'mlik haqiqiy, arxivlanmagan (sotiladigan) mahsulotni yaratadi (IKPU va fiskal ma'lumotlari bilan).
  * 3. Shu user uchun 2000 so'mlik tayyor PENDING buyurtma va Payme kassa havolasini generatsiya qiladi.
  * 4. Postman va brauzer orqali to'lovni tekshirish uchun barcha ID va parametrlarni chiqarib beradi.
  *
  * Ishga tushirish (production yoki serverda):
  *   npm run payme:prod-test
- *   npm run payme:prod-test -- --password "MyPassword123!"
+ *   npm run payme:prod-test -- --phone +998901234567 --name "Payme Test User"
  *   npm run payme:prod-test -- --price 2000
  *   npm run payme:prod-test -- --no-order    # Faqat user va mahsulotni tayyorlash
  */
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import { buildPaymeCheckoutUrl } from '../src/api/payments/payme/payme.constants';
+import {
+  cleanFullName,
+  normalizePhone,
+} from '../src/common/utils/phone.util';
 
 // Prisma types serverda qayta generate qilinmagan bo'lsa ham TypeScript xato bermasligi uchun:
 const OrderStatus = {
@@ -48,8 +51,8 @@ function option(name: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
-const EMAIL = (option('email') ?? 'user@gmail.com').toLowerCase().trim();
-const PASSWORD = option('password') ?? 'Password123!';
+const PHONE = normalizePhone(option('phone') ?? '+998901234567');
+const FULL_NAME = cleanFullName(option('name') ?? 'Payme Test User');
 const PRICE = Number(option('price') ?? 2000);
 const STOCK = Number(option('stock') ?? 1000);
 const NO_ORDER = flag('no-order');
@@ -95,32 +98,27 @@ async function main() {
 
   // 2. Foydalanuvchini yaratish / yangilash
   console.log('\n[2/4] Test foydalanuvchisini tayyorlash:');
-  const hashedPassword = await bcrypt.hash(PASSWORD, 10);
+  if (!PHONE) throw new Error("--phone noto'g'ri");
 
-  const user = await prisma.user.upsert({
-    where: { email: EMAIL },
-    update: {
-      password: hashedPassword,
-      is_verified: true, // OTP talab qilinmasligi uchun
-      role: Role.USER as any,
-      language: 'uz',
-    },
-    create: {
-      email: EMAIL,
-      password: hashedPassword,
-      full_name: 'Payme Test User',
-      phone: '+998901234567',
-      is_verified: true,
-      role: Role.USER as any,
-      language: 'uz',
-    },
-  });
+  const existing = await prisma.user.findFirst({ where: { phone: PHONE } });
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: { full_name: FULL_NAME, language: 'uz' },
+      })
+    : await prisma.user.create({
+        data: {
+          phone: PHONE,
+          full_name: FULL_NAME,
+          role: Role.USER as any,
+          language: 'uz',
+        },
+      });
 
   console.log(`  ✅ User tayyor:`);
   console.log(`     - ID       : ${user.id}`);
-  console.log(`     - Email    : ${user.email}`);
-  console.log(`     - Parol    : ${PASSWORD}`);
-  console.log(`     - Verified : ${user.is_verified ? 'Ha (tasdiqlangan)' : 'Yo\'q'}`);
+  console.log(`     - Telefon  : ${user.phone}`);
+  console.log(`     - Ism      : ${user.full_name}`);
 
   // 3. Kategoriya va Mahsulotni tayyorlash
   console.log('\n[3/4] 2000 so\'mlik mahsulot va fiskal ma\'lumotlarni tayyorlash:');
@@ -218,7 +216,7 @@ async function main() {
       quantity: 1,
     },
   });
-  console.log(`     - Savatga qo'shildi: 1 dona (${user.email} savatida)`);
+  console.log(`     - Savatga qo'shildi: 1 dona (${user.phone} savatida)`);
 
   // 4. Buyurtma yaratish va to'lov havolasini generatsiya qilish
   if (NO_ORDER) {
@@ -292,8 +290,8 @@ async function main() {
 
   console.log('\n' + '-'.repeat(70));
   console.log('📬 POSTMAN UCHUN MA\'LUMOTLAR:');
-  console.log(`  Email       : ${EMAIL}`);
-  console.log(`  Parol       : ${PASSWORD}`);
+  console.log(`  Telefon     : ${PHONE}`);
+  console.log(`  Ism         : ${FULL_NAME}`);
   console.log(`  Product ID  : ${product.id}`);
   console.log(`  Product SKU : ${product.sku}`);
   console.log('-'.repeat(70) + '\n');

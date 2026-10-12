@@ -50,6 +50,8 @@ const TOTAL_SOM = UNIT_PRICE * QUANTITY;
 const TOTAL_TIYIN = TOTAL_SOM * 100;
 
 const MARKER = 'payme-selftest';
+/** Soxta raqam ("00" operator kodi yo'q) - haqiqiy mijoz bilan to'qnashmaydi. */
+const FIXTURE_PHONE = '+998000000002';
 
 let passed = 0;
 let failed = 0;
@@ -128,8 +130,8 @@ function expectSame(name: string, first: unknown, second: unknown) {
 
 /** Skript yaratgan hamma narsani o'chiradi (marker bo'yicha). */
 async function removeLeftovers() {
-  const user = await prisma.user.findUnique({
-    where: { email: `${MARKER}@example.invalid` },
+  const user = await prisma.user.findFirst({
+    where: { phone: FIXTURE_PHONE },
   });
 
   if (user) {
@@ -207,16 +209,14 @@ async function main() {
 
   // --- Test ma'lumotlari -------------------------------------------------
   // Oldingi urinish yarim yo'lda uzilgan bo'lsa qoldiqlarni tozalaymiz:
-  // `email` va `slug` unikal, aks holda skript boshlanmasdan yiqilardi.
+  // `phone` va `slug` unikal, aks holda skript boshlanmasdan yiqilardi.
   await removeLeftovers();
 
   const user = await prisma.user.create({
     data: {
-      email: `${MARKER}@example.invalid`,
-      password: MARKER,
+      phone: FIXTURE_PHONE,
       full_name: 'Payme Selftest',
       language: 'uz',
-      is_verified: true,
     },
   });
 

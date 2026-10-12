@@ -157,8 +157,9 @@ function normalizeSku(sku?: string | null): string | null {
   return trimmed ? trimmed.toUpperCase() : null;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+/** Narxlar butun so'mda (UZS) - src/common/utils/money.util.ts bilan bir xil. */
+function roundSom(value: number): number {
+  return Math.round(value);
 }
 
 /** src/api/products/products.pricing.ts bilan bir xil. */
@@ -172,7 +173,7 @@ function computePriceFields(price: number, discountPrice?: number | null) {
   const finalPrice = hasDiscount ? discountPrice : price;
 
   return {
-    final_price: round2(finalPrice),
+    final_price: roundSom(finalPrice),
     discount_percent:
       hasDiscount && price > 0
         ? Math.round(((price - finalPrice) / price) * 100)

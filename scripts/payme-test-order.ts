@@ -41,6 +41,7 @@ const prisma = new PrismaClient();
 // `payme:selftest` dan boshqa marker: ikkala skript bir-birining ma'lumotini
 // o'chirib yubormasligi kerak.
 const MARKER = 'payme-test-order';
+const FIXTURE_PHONE = '+998000000001';
 
 const args = process.argv.slice(2);
 
@@ -89,17 +90,16 @@ function checkoutLink(orderId: string, amountInSom: number, lang: string) {
 
 /** Test foydalanuvchisi + kategoriya + mahsulotni yaratadi yoki topadi. */
 async function ensureFixtures() {
-  const user = await prisma.user.upsert({
-    where: { email: `${MARKER}@example.invalid` },
-    update: {},
-    create: {
-      email: `${MARKER}@example.invalid`,
-      password: MARKER,
-      full_name: 'Payme Test Order',
-      language: 'uz',
-      is_verified: true,
-    },
-  });
+  // Soxta (mavjud bo'lmagan "00" operator kodi) raqam - haqiqiy mijoz bilan to'qnashmaydi
+  const user =
+    (await prisma.user.findFirst({ where: { phone: FIXTURE_PHONE } })) ??
+    (await prisma.user.create({
+      data: {
+        phone: FIXTURE_PHONE,
+        full_name: 'Payme Test Order',
+        language: 'uz',
+      },
+    }));
 
   // Fiskal maydonlar KATEGORIYADA - server ham ularni shu yerdan o'qiydi.
   // Har safar yangilanadi, ya'ni `--ikpu` ni o'zgartirsangiz kategoriyani
@@ -273,7 +273,7 @@ async function cleanup() {
   await prisma.order.deleteMany({ where: { id: { in: ids } } });
   await prisma.product.deleteMany({ where: { slug: `${MARKER}-product` } });
   await prisma.category.deleteMany({ where: { slug: `${MARKER}-category` } });
-  await prisma.user.deleteMany({ where: { email: `${MARKER}@example.invalid` } });
+  await prisma.user.deleteMany({ where: { phone: FIXTURE_PHONE } });
 
   console.log(`✅ ${ids.length} ta test buyurtmasi va fixture'lar o'chirildi.`);
 }

@@ -10,18 +10,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Kirish faqat telefon + ism orqali (email/OTP olib tashlangan).
+///
+/// `phone` E.164 ko'rinishida saqlanadi (`+998901234567`) va UNIKAL - lekin
+/// Prisma'da `@unique` emas: MongoDB unikal indeksi `phone` yo'q (null)
+/// hujjatlarni ham bir-biriga to'qnashtiradi. Unikallik `AuthService` /
+/// `UsersService` da tekshiriladi, bazada esa `prisma/migrate-phone-auth.ts`
+/// yaratadigan qisman (partial) unikal indeks qo'riqlaydi.
 model User {
   id         String   @id @default(uuid()) @map("_id")
-  email      String   @unique
-  password   String
-  full_name  String?
+  full_name  String
   phone      String?
+  /// Faqat ADMIN uchun: admin panelga kirish telefon + parol bilan.
+  /// Oddiy foydalanuvchida bo'sh qoladi.
+  password   String?
+  photo      String?
+  role       Role     @default(USER)
+  language   String   @default("uz")
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  photo       String?
-  role        Role     @default(USER)
-  is_verified Boolean  @default(false)
-  language    String   @default("uz")
 
   orders  Order[]
   cart    Cart?

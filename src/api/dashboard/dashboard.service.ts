@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
-import { round2 } from '../products/products.pricing';
+import { roundSom } from '../../common/utils/money.util';
 
 @Injectable()
 export class DashboardService {
@@ -12,7 +12,6 @@ export class DashboardService {
       allOrders,
       successfulPayments,
       totalUsers,
-      verifiedUsers,
       totalProducts,
       archivedProducts,
       outOfStockProducts,
@@ -34,7 +33,6 @@ export class DashboardService {
         _sum: { amount: true },
       }),
       this.prisma.user.count(),
-      this.prisma.user.count({ where: { is_verified: true } }),
       this.prisma.product.count({ where: { is_archived: false } }),
       this.prisma.product.count({ where: { is_archived: true } }),
       // Narxi kelishiladigan tovarlarning zaxirasi ataylab 0 - ular "tugagan"
@@ -53,7 +51,7 @@ export class DashboardService {
         orderBy: { created_at: 'desc' },
         include: {
           user: {
-            select: { id: true, email: true, full_name: true, phone: true },
+            select: { id: true, full_name: true, phone: true },
           },
           items: {
             include: {
@@ -137,15 +135,15 @@ export class DashboardService {
     const monthly_sales = Array.from(monthlyMap.entries()).map(
       ([month, data]) => ({
         month,
-        revenue: round2(data.revenue),
+        revenue: roundSom(data.revenue),
         orders: data.orders,
       }),
     );
 
     return {
       revenue: {
-        total_revenue: round2(totalRevenue),
-        paid_revenue: round2(successfulPayments._sum.amount ?? 0),
+        total_revenue: roundSom(totalRevenue),
+        paid_revenue: roundSom(successfulPayments._sum.amount ?? 0),
       },
       orders: orderCounts,
       products: {
@@ -157,7 +155,6 @@ export class DashboardService {
       },
       users: {
         total_users: totalUsers,
-        verified_users: verifiedUsers,
       },
       monthly_sales,
       recent_orders: recentOrders,

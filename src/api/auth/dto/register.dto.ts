@@ -1,31 +1,23 @@
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { cleanFullName } from '../../../common/utils/phone.util';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'user@example.com' })
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
-
-  @ApiProperty({ example: 'password123' })
+  @ApiProperty({ example: 'Aziza Karimova' })
+  @Transform(({ value }) => cleanFullName(value))
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
-  password: string;
+  @MinLength(2)
+  @MaxLength(100)
+  full_name: string;
 
-  @ApiProperty({ example: 'John Doe', required: false })
+  @ApiProperty({
+    example: '+998901234567',
+    description:
+      "Istalgan ko'rinishda: `901234567`, `+998 90 123-45-67`. Server `+998901234567` ga keltiradi.",
+  })
   @IsString()
-  @IsOptional()
-  full_name?: string;
-
-  @ApiProperty({ example: '+998901234567', required: false })
-  @IsString()
-  @IsOptional()
-  phone?: string;
+  @IsNotEmpty()
+  phone: string;
 }

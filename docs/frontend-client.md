@@ -119,31 +119,28 @@ ko'rinadi, bo'sh qolmaydi.
 
 ## 3. Autentifikatsiya
 
-Barcha yo'llar: `POST /api/auth/...`
+> To'liq tavsif va migratsiya: [front-changes-phone-auth.md](./front-changes-phone-auth.md)
+
+Barcha yo'llar: `POST /api/auth/...`. Email, parol va OTP **yo'q**.
 
 | Endpoint | Tana | Javob |
 |---|---|---|
-| `register` | `{email, password, full_name?, phone?}` | `{message}` — emailga 6 xonali kod ketadi |
-| `verify` | `{email, code}` | `{message}` |
-| `resend-code` | `{email}` | `{message}` |
-| `login` | `{email, password}` | `{user, access_token, refresh_token}` |
+| `register` | `{full_name, phone}` | `{user, access_token, refresh_token}` — darhol kirilgan |
+| `login` | `{phone, full_name}` | `{user, access_token, refresh_token}` |
 | `refresh` | `{refresh_token}` | `{access_token, refresh_token}` |
-| `forgot-password` | `{email}` | `{message}` |
-| `reset-password` | `{email, code, new_password}` | `{message}` |
-| `change-password` | `{old_password, new_password}` (JWT) | `{message}` |
 | `logout` | — (JWT) | `{message}` |
 
-**Login javobi:**
+**Login / register javobi:**
 
 ```json
 {
   "success": true,
   "language": "uz",
+  "currency": "UZS",
   "data": {
     "user": {
-      "id": "…", "email": "…", "full_name": "…", "role": "USER",
-      "phone": "…", "photo": null, "language": "uz",
-      "is_verified": true, "created_at": "…", "updated_at": "…"
+      "id": "…", "full_name": "…", "phone": "+998901234567", "role": "USER",
+      "photo": null, "language": "uz", "created_at": "…", "updated_at": "…"
     },
     "access_token": "eyJ…",
     "refresh_token": "eyJ…"
@@ -153,15 +150,12 @@ Barcha yo'llar: `POST /api/auth/...`
 
 Muhim jihatlar:
 
-- Ro'yxatdan o'tish faqat **email + OTP** orqali. SMS provayder yo'q.
-- Kod amal qilish muddati `.env` dagi `OTP_TTL_MINUTES` (odatda 10 daqiqa),
-  qayta yuborish oralig'i `OTP_RESEND_COOLDOWN_SECONDS` (odatda 60 s).
-  Kod **5 marta xato** kiritilsa bekor bo'ladi — qaytadan so'rash kerak.
-- `forgot-password` **email bor-yo'qligini oshkor qilmaydi** — har doim bir xil
-  javob qaytadi. UI da "kod yuborildi" deb ko'rsating, "bunday email yo'q" demang.
+- Telefon istalgan ko'rinishda yuboriladi, server `+998XXXXXXXXX` ga keltiradi.
+- Ism registr va ortiqcha bo'shliqlarsiz solishtiriladi.
+- `register`: raqam band bo'lsa `409`. `login`: xato bo'lsa `401`,
+  bitta raqamga 15 daqiqada 5 ta xatodan keyin `429`.
 - Tokenlar **stateless**. `logout` serverda hech nima o'chirmaydi — tokenlarni
   o'zingiz o'chiring.
-- Parolni o'zgartirgandan keyin eski tokenlar **ishlashda davom etadi** (stateless).
 
 Barcha himoyalangan so'rovlarda: `Authorization: Bearer <access_token>`.
 `401` kelsa → `refresh` → qayta urinib ko'ring → yana `401` bo'lsa login sahifasi.

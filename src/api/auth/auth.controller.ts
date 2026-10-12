@@ -11,18 +11,22 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiBody,
 } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import type { User } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PhoneAuthGuard } from './guards/phone-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { Roles } from './decorators/roles.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { CurrentLang } from '../../common/i18n/request-language';
+import type { Lang } from '../../common/i18n/locale';
 
 @ApiTags('Authentication')
 @Controller('api/auth')
@@ -30,62 +34,33 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'Verification code sent to email' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
-  }
-
-  @Post('verify')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email with OTP code' })
-  @ApiResponse({ status: 200, description: 'Email verified successfully' })
-  verify(@Body() dto: VerifyOtpDto) {
-    return this.authService.verify(dto);
-  }
-
-  @Post('resend-code')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Resend OTP verification code' })
-  @ApiResponse({
-    status: 200,
-    description: 'Verification code resent successfully',
+  @ApiOperation({
+    summary: 'Register with full name + phone',
+    description:
+      "Tasdiqlash yo'q: javobda darhol `user`, `access_token`, `refresh_token` qaytadi. " +
+      'Profil tili `?ln` dan olinadi (default `uz`).',
   })
-  resendCode(@Body() dto: ResendOtpDto) {
-    return this.authService.resendCode(dto);
+  @ApiResponse({ status: 201, description: 'User created and logged in' })
+  @ApiResponse({ status: 409, description: 'Phone number already registered' })
+  register(@Body() dto: RegisterDto, @CurrentLang() lang: Lang) {
+    return this.authService.register(dto, lang);
   }
 
   @Post('login')
+  @UseGuards(PhoneAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Log in with email & password' })
+  @ApiBody({ type: LoginDto })
+  @ApiOperation({
+    summary: 'Log in with phone + full name (admin: phone + password)',
+  })
   @ApiResponse({
     status: 200,
     description: 'User details, access token and refresh token generated',
   })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
-  }
-
-  @Post('forgot-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request OTP code to reset forgotten password' })
-  @ApiResponse({
-    status: 200,
-    description: 'Password reset code sent to email',
-  })
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
-  }
-
-  @Post('reset-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset forgotten password using 6-digit OTP code' })
-  @ApiResponse({
-    status: 200,
-    description: 'Password reset successfully',
-  })
-  resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 429, description: 'Too many failed attempts' })
+  login(@CurrentUser() user: User) {
+    return this.authService.login(user);
   }
 
   @Post('logout')
@@ -105,10 +80,11 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Change current user password' })
+  @ApiOperation({ summary: 'Change admin password (Admin only)' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
   changePassword(
     @CurrentUser('sub') userId: string,
